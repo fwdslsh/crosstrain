@@ -1,0 +1,9 @@
+{
+  "name": "example-plugin",
+  "description": "An example Claude Code plugin demonstrating marketplace installation",
+  "version": "1.0.0",
+  "author": {
+    "name": "Crosstrain Demo"
+  },
+  "keywords": ["demo", "example", "marketplace"]
+}

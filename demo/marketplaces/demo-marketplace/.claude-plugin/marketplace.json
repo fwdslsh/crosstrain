@@ -1,0 +1,14 @@
+{
+  "name": "demo-marketplace",
+  "owner": {
+    "name": "Crosstrain Demo"
+  },
+  "description": "Example marketplace showing how to configure and use Claude Code plugins with crosstrain",
+  "plugins": [
+    {
+      "name": "example-plugin",
+      "source": "./example-plugin",
+      "description": "An example plugin with skills, agents, and commands"
+    }
+  ]
+}
