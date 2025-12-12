@@ -4,9 +4,9 @@ This document provides a comprehensive analysis of the crosstrain plugin's featu
 
 ## Executive Summary
 
-**Overall Coverage: 4/7 major features (57%)**
+**Overall Coverage: 5/7 major features (71%)**
 
-The crosstrain plugin successfully converts the four primary Claude Code extension points (Skills, Agents, Commands, and Hooks) to their OpenCode equivalents. Three Claude Code features are not currently supported: Output Styles, Claude Plugin structure, and MCP server bundling.
+The crosstrain plugin successfully converts the five primary Claude Code extension points (Skills, Agents, Commands, Hooks, and Marketplaces/Plugin Installation) to their OpenCode equivalents. Two Claude Code features are not currently supported: Output Styles and MCP server bundling.
 
 ## Supported Features ✅
 
@@ -287,6 +287,95 @@ Becomes an OpenCode `tool.execute.before` handler that executes the command when
 
 ---
 
+### 5. Marketplaces & Plugin Installation (90% Coverage)
+
+**Status:** ✅ Implemented with local marketplace support
+
+**Claude Code Documentation:** https://docs.claude.com/docs/en/plugins, https://docs.claude.com/docs/en/plugin-marketplaces
+
+**OpenCode Equivalent:** Crosstrain-specific plugin installation system
+
+**Implementation:** `src/loaders/marketplace.ts`, `src/loaders/plugin-installer.ts`
+
+**How It Works:**
+- Configure marketplaces in crosstrain configuration
+- Specify plugins to auto-install on startup
+- Choose installation directory (project, user, or custom)
+- Manage installations via provided tools
+
+**Mapping Details:**
+
+| Claude Code | Crosstrain Implementation |
+|-------------|--------------------------|
+| Marketplace manifest (`.claude-plugin/marketplace.json`) | ✅ Fully parsed |
+| Plugin manifest (`.claude-plugin/plugin.json`) | ✅ Fully parsed |
+| Local marketplace sources | ✅ Supported |
+| Git/GitHub marketplace sources | ⚠️ Recognized but not yet implemented |
+| Plugin installation via `/plugin install` | ✅ Via `crosstrain_install_plugin` tool |
+| Plugin uninstallation | ✅ Via `crosstrain_uninstall_plugin` tool |
+| List marketplaces | ✅ Via `crosstrain_list_marketplaces` tool |
+| List installed plugins | ✅ Via `crosstrain_list_installed` tool |
+
+**Configuration Example:**
+
+```json
+// .crosstrainrc.json or crosstrain.config.json
+{
+  "marketplaces": [
+    {
+      "name": "local-marketplace",
+      "source": "./marketplaces/local",
+      "enabled": true
+    },
+    {
+      "name": "company-plugins",
+      "source": "your-org/claude-plugins",
+      "enabled": true
+    }
+  ],
+  "plugins": [
+    {
+      "name": "my-plugin",
+      "marketplace": "local-marketplace",
+      "installDir": "project",
+      "enabled": true
+    }
+  ]
+}
+```
+
+**Installation Directories:**
+- `"project"` - Installs to `.claude/plugins/` in project (default)
+- `"user"` - Installs to `~/.claude/plugins/` in user home
+- Custom path - Any absolute or relative path
+
+**Management Tools:**
+1. `crosstrain_list_marketplaces` - List all configured marketplaces and their available plugins
+2. `crosstrain_list_installed` - Show installation status of configured plugins
+3. `crosstrain_install_plugin` - Install a plugin from a marketplace (with arguments: pluginName, marketplace, installDir, force)
+4. `crosstrain_uninstall_plugin` - Uninstall a plugin (with arguments: pluginName, installDir)
+
+**Automatic Installation:**
+When OpenCode starts with crosstrain configured, it will:
+1. Load configured marketplaces
+2. Discover available plugins
+3. Install configured plugins to specified directories
+4. Load plugin assets (skills, agents, commands, hooks)
+
+**Limitations:**
+- Git-based marketplace sources (GitHub URLs, Git repos) are planned but not yet implemented
+- Only local marketplace paths currently work
+- MCP server bundling in plugins is not processed (configure MCP separately)
+
+**Demo:**
+See `demo/marketplaces/` for a complete working example with:
+- Example marketplace structure
+- Sample plugin with components
+- Configuration examples
+- Step-by-step usage guide
+
+---
+
 ## Unsupported Features ❌
 
 ### 5. Output Styles (Not Supported)
@@ -319,50 +408,6 @@ Output Styles in Claude Code directly modify the system prompt at the main agent
 
 **Recommendation:**
 Document this limitation and suggest workarounds. Consider proposing an OpenCode plugin API for system prompt customization.
-
----
-
-### 6. Claude Plugin Structure (Not Supported)
-
-**Status:** ❌ Not Implemented
-
-**Claude Code Documentation:** https://docs.claude.com/docs/en/plugins
-
-**OpenCode Equivalent:** OpenCode has its own plugin system
-
-**Why Not Supported:**
-Claude Code has a plugin system (`.claude-plugin/`) that bundles multiple extension points together with marketplace distribution. This is a meta-structure for distributing Skills, Agents, Commands, Hooks, and MCP servers.
-
-**What It Does in Claude Code:**
-- Packages multiple extension points together
-- Includes `plugin.json` manifest with metadata
-- Supports marketplace distribution
-- Can bundle MCP servers
-- Has its own versioning and dependency system
-
-**Current Behavior:**
-The crosstrain plugin converts individual Claude Code assets (Skills, Agents, Commands, Hooks) but doesn't process the `.claude-plugin/` structure itself.
-
-**Possible Approaches:**
-
-1. **Convert Plugin Structure to OpenCode Plugin** (High Complexity)
-   - Parse `.claude-plugin/plugin.json`
-   - Generate OpenCode plugin structure
-   - Convert all bundled assets
-   - Create OpenCode-compatible manifest
-
-2. **Flatten Plugin Structure** (Current Approach)
-   - Ignore `.claude-plugin/` metadata
-   - Convert individual assets as-is
-   - Simpler but loses plugin organization
-
-**Implementation Complexity:** High
-- Requires understanding both plugin systems deeply
-- OpenCode plugin structure is different from Claude's
-- May need to generate TypeScript/JavaScript code for OpenCode plugins
-
-**Recommendation:**
-Current approach (flattening) is appropriate for the plugin's scope. Document that Claude Plugins should be unpacked and their individual components will be converted.
 
 ---
 
