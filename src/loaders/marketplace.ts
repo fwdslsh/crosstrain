@@ -163,9 +163,14 @@ export async function loadMarketplace(
     return { path: resolved.path, manifest }
   }
 
-  // For Git sources, we would need to clone/fetch the repository
-  // This is a placeholder for future implementation
-  console.warn("Git marketplace sources are not yet implemented")
+  // TODO: Implement Git marketplace sources
+  // Planned approach:
+  // 1. Clone repository to temporary directory using git CLI or isomorphic-git
+  // 2. Checkout specified ref (branch/tag/commit) if provided
+  // 3. Parse marketplace manifest from cloned repository
+  // 4. Cache cloned repositories for subsequent loads
+  // 5. Support periodic updates/pulls for marketplace refreshes
+  console.warn(`Git marketplace sources are not yet implemented: ${resolved.url}`)
   return null
 }
 
