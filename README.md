@@ -4,11 +4,21 @@ An OpenCode plugin that dynamically loads Claude Code extension points into Open
 
 ## Features
 
-- **Skills → Tools**: Converts Claude Code Skills (`.claude/skills/`) to OpenCode custom tools
-- **Agents → Agents**: Converts Claude Code Subagents (`.claude/agents/`) to OpenCode agents (`.opencode/agent/`)
-- **Commands → Commands**: Converts Claude Code slash commands (`.claude/commands/`) to OpenCode commands (`.opencode/command/`)
-- **Hooks → Event Handlers**: Converts Claude Code hooks (settings.json) to OpenCode plugin event handlers
+- **Skills → Tools** (✅ 100%): Converts Claude Code Skills (`.claude/skills/`) to OpenCode custom tools
+- **Agents → Agents** (✅ 95%): Converts Claude Code Subagents (`.claude/agents/`) to OpenCode agents (`.opencode/agent/`)
+- **Commands → Commands** (✅ 100%): Converts Claude Code slash commands (`.claude/commands/`) to OpenCode commands (`.opencode/command/`)
+- **Hooks → Event Handlers** (✅ 85%): Converts Claude Code hooks (settings.json) to OpenCode plugin event handlers
 - **Dynamic Updates**: Watches for changes and automatically resyncs assets
+
+**Feature Coverage: 4/7 major features supported** - See [FEATURES.md](FEATURES.md) for complete details.
+
+### What's Not Supported
+
+- ❌ **Output Styles**: No OpenCode equivalent (use AGENTS.md or custom agents)
+- ❌ **Claude Plugin Structure**: Different plugin systems (assets are converted individually)
+- ❌ **MCP Server Bundling**: Configure MCP servers manually in opencode.json
+
+For details on unsupported features and workarounds, see [FEATURES.md](FEATURES.md).
 
 ## Installation
 
@@ -167,6 +177,17 @@ Becomes an OpenCode tool: `skill_generating_commit_messages`
 
 4. **Prefixing**: Converted assets are prefixed with `claude_` to avoid conflicts with native OpenCode assets
 
+## Demo Examples
+
+The `demo/` directory contains working examples for each supported feature:
+
+- **Skills** (`demo/skills/`): Converting Skills to Tools
+- **Agents** (`demo/agents/`): Converting Agents with various configurations
+- **Commands** (`demo/commands/`): Converting Commands with template variables
+- **Hooks** (`demo/hooks/`): Converting Hooks to event handlers
+
+See [demo/README.md](demo/README.md) for usage instructions.
+
 ## API
 
 ### Plugin Export
@@ -192,6 +213,15 @@ What Claude Code assets are loaded?
 - **Hook Complexity**: Some Claude Code hook events don't have direct OpenCode equivalents
 - **Permission Granularity**: OpenCode has different permission models; some Claude permissions are approximated
 - **Real-time Reload**: While files are watched, OpenCode may need a restart to pick up some changes (agents, commands)
+
+See [FEATURES.md](FEATURES.md) for detailed feature coverage analysis.
+
+## Documentation
+
+- **[FEATURES.md](FEATURES.md)**: Complete feature coverage analysis with documentation links
+- **[demo/README.md](demo/README.md)**: Working examples for all supported features
+- **Claude Code Docs**: https://docs.claude.com/docs/en/overview
+- **OpenCode Docs**: https://opencode.ai/docs
 
 ## Contributing
 
