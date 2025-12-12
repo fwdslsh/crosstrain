@@ -1,0 +1,23 @@
+{
+  "name": "@crosstrain/claude-loader",
+  "version": "1.0.0",
+  "description": "OpenCode plugin that loads Claude Code extension points (skills, agents, commands, hooks) into OpenCode",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir ./dist --target bun",
+    "test": "bun test"
+  },
+  "peerDependencies": {
+    "@opencode-ai/plugin": "*"
+  },
+  "keywords": [
+    "opencode",
+    "claude-code",
+    "plugin",
+    "bridge",
+    "crosstrain"
+  ],
+  "author": "crosstrain",
+  "license": "MIT"
+}
