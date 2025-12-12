@@ -92,6 +92,16 @@ export interface CrosstrainConfig {
    * Key: Claude tool name, Value: OpenCode tool name
    */
   toolMappings?: Record<string, string>
+
+  /**
+   * Marketplace configuration
+   */
+  marketplaces?: MarketplaceConfig[]
+
+  /**
+   * Plugin installation configuration
+   */
+  plugins?: PluginInstallConfig[]
 }
 
 /**
@@ -113,6 +123,8 @@ export interface ResolvedCrossstrainConfig {
   }
   modelMappings: Record<string, string>
   toolMappings: Record<string, string>
+  marketplaces: MarketplaceConfig[]
+  plugins: PluginInstallConfig[]
 }
 
 /**
@@ -134,6 +146,8 @@ export const DEFAULT_CONFIG: ResolvedCrossstrainConfig = {
   },
   modelMappings: {},
   toolMappings: {},
+  marketplaces: [],
+  plugins: [],
 }
 
 // ========================================
@@ -327,4 +341,158 @@ export const HOOK_EVENT_MAPPING: Record<string, string> = {
   Notification: "tui.toast.show",
   Stop: "session.idle",
   SubagentStop: "session.idle",
+}
+
+// ========================================
+// Marketplace & Plugin Installation Types
+// ========================================
+
+/**
+ * Marketplace configuration
+ */
+export interface MarketplaceConfig {
+  /**
+   * Name identifier for the marketplace
+   */
+  name: string
+
+  /**
+   * Source of the marketplace
+   * Can be:
+   * - Local directory path (e.g., "./marketplaces/my-marketplace")
+   * - Git repository URL (e.g., "https://github.com/org/claude-plugins")
+   * - GitHub shorthand (e.g., "org/claude-plugins")
+   */
+  source: string
+
+  /**
+   * Optional: Git branch/tag/commit to use
+   */
+  ref?: string
+
+  /**
+   * Whether this marketplace is enabled
+   * @default true
+   */
+  enabled?: boolean
+}
+
+/**
+ * Plugin installation configuration
+ */
+export interface PluginInstallConfig {
+  /**
+   * Plugin name (as defined in plugin.json)
+   */
+  name: string
+
+  /**
+   * Marketplace name where the plugin is located
+   */
+  marketplace: string
+
+  /**
+   * Installation directory
+   * Can be:
+   * - "project" - Install to project's .claude directory
+   * - "user" - Install to user's ~/.claude directory
+   * - Custom path (absolute or relative to project root)
+   * @default "project"
+   */
+  installDir?: string
+
+  /**
+   * Whether this plugin installation is enabled
+   * @default true
+   */
+  enabled?: boolean
+
+  /**
+   * Optional: Plugin version/tag to install
+   */
+  version?: string
+}
+
+/**
+ * Claude Code plugin manifest (.claude-plugin/plugin.json)
+ */
+export interface ClaudePluginManifest {
+  name: string
+  description?: string
+  version?: string
+  author?: {
+    name: string
+    email?: string
+    url?: string
+  }
+  homepage?: string
+  repository?: string
+  license?: string
+  keywords?: string[]
+  /**
+   * Plugin dependencies
+   */
+  dependencies?: Record<string, string>
+}
+
+/**
+ * Claude Code marketplace manifest (.claude-plugin/marketplace.json)
+ */
+export interface ClaudeMarketplaceManifest {
+  name: string
+  owner?: {
+    name: string
+    email?: string
+    url?: string
+  }
+  description?: string
+  homepage?: string
+  /**
+   * List of plugins in this marketplace
+   */
+  plugins: MarketplacePluginEntry[]
+}
+
+/**
+ * Plugin entry in a marketplace manifest
+ */
+export interface MarketplacePluginEntry {
+  /**
+   * Plugin name (must match plugin.json name)
+   */
+  name: string
+
+  /**
+   * Path to plugin directory relative to marketplace root
+   */
+  source: string
+
+  /**
+   * Plugin description (can override plugin.json)
+   */
+  description?: string
+
+  /**
+   * Plugin version (can override plugin.json)
+   */
+  version?: string
+
+  /**
+   * Plugin tags/categories
+   */
+  tags?: string[]
+}
+
+/**
+ * Parsed plugin information
+ */
+export interface ParsedPlugin {
+  manifest: ClaudePluginManifest
+  marketplace: string
+  sourcePath: string
+  hasSkills: boolean
+  hasAgents: boolean
+  hasCommands: boolean
+  hasHooks: boolean
+  hasMCP: boolean
 }

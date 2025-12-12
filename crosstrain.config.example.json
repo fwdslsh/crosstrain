@@ -28,5 +28,38 @@
     "Write": "write",
     "Edit": "edit",
     "Bash": "bash"
-  }
+  },
+
+  "marketplaces": [
+    {
+      "name": "local-marketplace",
+      "source": "./marketplaces/local",
+      "enabled": true
+    },
+    {
+      "name": "company-plugins",
+      "source": "https://github.com/your-org/claude-plugins",
+      "enabled": true
+    },
+    {
+      "name": "public-marketplace",
+      "source": "your-org/claude-plugins",
+      "enabled": false
+    }
+  ],
+
+  "plugins": [
+    {
+      "name": "my-plugin",
+      "marketplace": "local-marketplace",
+      "installDir": "project",
+      "enabled": true
+    },
+    {
+      "name": "team-tools",
+      "marketplace": "company-plugins",
+      "installDir": "user",
+      "enabled": true
+    }
+  ]
 }
