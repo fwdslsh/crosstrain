@@ -17,7 +17,7 @@ const DEMO_DIR = join(process.cwd(), "temp-skill-demo-02")
 const CLAUDE_DIR = join(DEMO_DIR, ".claude")
 
 console.log("🎬 Demo 02: Skill with Tool Restrictions\n")
-console.log("=" .repeat(70))
+console.log("=".repeat(70))
 console.log()
 
 // ============================================================================
@@ -250,9 +250,9 @@ console.log()
 // Summary
 // ============================================================================
 
-console.log("=" .repeat(70))
+console.log("=".repeat(70))
 console.log("📊 Summary")
-console.log("=" .repeat(70))
+console.log("=".repeat(70))
 console.log()
 console.log("Claude Code Skills with allowed-tools:")
 console.log("  📁 .claude/skills/*/SKILL.md (with allowed-tools in frontmatter)")

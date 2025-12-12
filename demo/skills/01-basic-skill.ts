@@ -21,7 +21,7 @@ const CLAUDE_DIR = join(DEMO_DIR, ".claude")
 const SKILL_DIR = join(CLAUDE_DIR, "skills", "commit-helper")
 
 console.log("🎬 Demo 01: Basic Skill Conversion\n")
-console.log("=" .repeat(70))
+console.log("=".repeat(70))
 console.log()
 
 // ============================================================================
@@ -190,9 +190,9 @@ console.log()
 // Summary
 // ============================================================================
 
-console.log("=" .repeat(70))
+console.log("=".repeat(70))
 console.log("📊 Summary")
-console.log("=" .repeat(70))
+console.log("=".repeat(70))
 console.log()
 console.log("Claude Code Asset:")
 console.log("  📁 .claude/skills/commit-helper/SKILL.md")

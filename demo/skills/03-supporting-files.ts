@@ -17,7 +17,7 @@ const CLAUDE_DIR = join(DEMO_DIR, ".claude")
 const SKILL_DIR = join(CLAUDE_DIR, "skills", "api-generator")
 
 console.log("🎬 Demo 03: Skill with Supporting Files\n")
-console.log("=" .repeat(70))
+console.log("=".repeat(70))
 console.log()
 
 // ============================================================================
@@ -394,9 +394,9 @@ console.log()
 // Summary
 // ============================================================================
 
-console.log("=" .repeat(70))
+console.log("=".repeat(70))
 console.log("📊 Summary")
-console.log("=" .repeat(70))
+console.log("=".repeat(70))
 console.log()
 console.log("Skill Structure:")
 console.log("  📁 SKILL.md - Main skill definition")

@@ -18,7 +18,7 @@ const OPENCODE_DIR = join(DEMO_DIR, ".opencode")
 const AGENTS_DIR = join(CLAUDE_DIR, "agents")
 
 console.log("🎬 Demo 01: Basic Agent Conversion\n")
-console.log("=" .repeat(70))
+console.log("=".repeat(70))
 console.log()
 
 // ============================================================================
@@ -327,9 +327,9 @@ console.log()
 // Summary
 // ============================================================================
 
-console.log("=" .repeat(70))
+console.log("=".repeat(70))
 console.log("📊 Summary")
-console.log("=" .repeat(70))
+console.log("=".repeat(70))
 console.log()
 console.log("Claude Code Agent:")
 console.log("  📁 .claude/agents/documentation.md")

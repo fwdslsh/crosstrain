@@ -16,7 +16,7 @@ const DEMO_DIR = join(process.cwd(), "temp-hook-demo-01")
 const CLAUDE_DIR = join(DEMO_DIR, ".claude")
 
 console.log("🎬 Demo 01: PreToolUse Hook Conversion\n")
-console.log("=" .repeat(70))
+console.log("=".repeat(70))
 console.log()
 
 // ============================================================================
@@ -346,9 +346,9 @@ console.log()
 // Summary
 // ============================================================================
 
-console.log("=" .repeat(70))
+console.log("=".repeat(70))
 console.log("📊 Summary")
-console.log("=" .repeat(70))
+console.log("=".repeat(70))
 console.log()
 console.log("Claude Code Hooks:")
 console.log("  📁 Configured in .claude/settings.json")

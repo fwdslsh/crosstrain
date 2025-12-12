@@ -18,7 +18,7 @@ const OPENCODE_DIR = join(DEMO_DIR, ".opencode")
 const COMMANDS_DIR = join(CLAUDE_DIR, "commands")
 
 console.log("🎬 Demo 01: Basic Command Conversion\n")
-console.log("=" .repeat(70))
+console.log("=".repeat(70))
 console.log()
 
 // ============================================================================
@@ -313,9 +313,9 @@ console.log()
 // Summary
 // ============================================================================
 
-console.log("=" .repeat(70))
+console.log("=".repeat(70))
 console.log("📊 Summary")
-console.log("=" .repeat(70))
+console.log("=".repeat(70))
 console.log()
 console.log("Claude Code Commands:")
 console.log("  📁 .claude/commands/*.md")
