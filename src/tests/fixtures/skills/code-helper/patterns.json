@@ -1,0 +1,12 @@
+{
+  "antiPatterns": [
+    "God class",
+    "Spaghetti code",
+    "Magic numbers"
+  ],
+  "bestPractices": [
+    "Single responsibility",
+    "DRY principle",
+    "KISS principle"
+  ]
+}
