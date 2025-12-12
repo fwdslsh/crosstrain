@@ -3,6 +3,140 @@
  */
 
 // ========================================
+// Plugin Configuration
+// ========================================
+
+/**
+ * Crosstrain plugin configuration
+ */
+export interface CrosstrainConfig {
+  /**
+   * Enable/disable the plugin entirely
+   * @default true
+   */
+  enabled?: boolean
+
+  /**
+   * Custom path to Claude directory (relative to project root)
+   * @default ".claude"
+   */
+  claudeDir?: string
+
+  /**
+   * Custom path to OpenCode output directory (relative to project root)
+   * @default ".opencode"
+   */
+  openCodeDir?: string
+
+  /**
+   * Whether to load user-level assets from ~/.claude
+   * @default true
+   */
+  loadUserAssets?: boolean
+
+  /**
+   * Whether to watch for file changes and auto-reload
+   * @default true
+   */
+  watch?: boolean
+
+  /**
+   * Prefix for generated files (agents, commands)
+   * @default "claude_"
+   */
+  filePrefix?: string
+
+  /**
+   * Enable verbose logging
+   * @default false
+   */
+  verbose?: boolean
+
+  /**
+   * Enable/disable specific loaders
+   */
+  loaders?: {
+    /**
+     * Load Claude skills as OpenCode tools
+     * @default true
+     */
+    skills?: boolean
+
+    /**
+     * Sync Claude agents to OpenCode agents
+     * @default true
+     */
+    agents?: boolean
+
+    /**
+     * Sync Claude commands to OpenCode commands
+     * @default true
+     */
+    commands?: boolean
+
+    /**
+     * Convert Claude hooks to OpenCode event handlers
+     * @default true
+     */
+    hooks?: boolean
+  }
+
+  /**
+   * Custom model mappings (override defaults)
+   * Key: Claude model alias, Value: OpenCode model path
+   */
+  modelMappings?: Record<string, string>
+
+  /**
+   * Custom tool mappings (override defaults)
+   * Key: Claude tool name, Value: OpenCode tool name
+   */
+  toolMappings?: Record<string, string>
+}
+
+/**
+ * Resolved configuration with all defaults applied
+ */
+export interface ResolvedCrossstrainConfig {
+  enabled: boolean
+  claudeDir: string
+  openCodeDir: string
+  loadUserAssets: boolean
+  watch: boolean
+  filePrefix: string
+  verbose: boolean
+  loaders: {
+    skills: boolean
+    agents: boolean
+    commands: boolean
+    hooks: boolean
+  }
+  modelMappings: Record<string, string>
+  toolMappings: Record<string, string>
+}
+
+/**
+ * Default configuration values
+ */
+export const DEFAULT_CONFIG: ResolvedCrossstrainConfig = {
+  enabled: true,
+  claudeDir: ".claude",
+  openCodeDir: ".opencode",
+  loadUserAssets: true,
+  watch: true,
+  filePrefix: "claude_",
+  verbose: false,
+  loaders: {
+    skills: true,
+    agents: true,
+    commands: true,
+    hooks: true,
+  },
+  modelMappings: {},
+  toolMappings: {},
+}
+
+// ========================================
 // Claude Code Types
 // ========================================
 

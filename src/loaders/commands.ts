@@ -154,25 +154,39 @@ export function generateOpenCodeCommand(command: ClaudeCommand): string {
 }
 
 /**
+ * Options for writing commands
+ */
+export interface WriteCommandsOptions {
+  /** Prefix for generated files (default: "claude_") */
+  filePrefix?: string
+  /** Whether to log output */
+  verbose?: boolean
+}
+
+/**
  * Write converted commands to OpenCode directory
  */
 export async function writeOpenCodeCommands(
   commands: ClaudeCommand[],
-  openCodeDir: string
+  openCodeDir: string,
+  options?: WriteCommandsOptions
 ): Promise<void> {
   const commandsDir = join(openCodeDir, "command")
+  const prefix = options?.filePrefix ?? "claude_"
+  const verbose = options?.verbose ?? true
 
   // Ensure the directory exists
   await mkdir(commandsDir, { recursive: true })
 
   for (const command of commands) {
     const commandContent = generateOpenCodeCommand(command)
-    // Prefix with 'claude_' to distinguish from native OpenCode commands
-    const fileName = `claude_${command.name}.md`
+    const fileName = `${prefix}${command.name}.md`
     const filePath = join(commandsDir, fileName)
 
     await writeFile(filePath, commandContent, "utf-8")
-    console.log(`[crosstrain] Wrote OpenCode command: ${filePath}`)
+    if (verbose) {
+      console.log(`[crosstrain] Wrote OpenCode command: ${filePath}`)
+    }
   }
 }
 
@@ -182,10 +196,11 @@ export async function writeOpenCodeCommands(
 export async function syncCommandsToOpenCode(
   claudeDir: string,
   homeDir: string,
-  openCodeDir: string
+  openCodeDir: string,
+  options?: WriteCommandsOptions
 ): Promise<ClaudeCommand[]> {
   const commands = await discoverCommands(claudeDir, homeDir)
-  await writeOpenCodeCommands(commands, openCodeDir)
+  await writeOpenCodeCommands(commands, openCodeDir, options)
   return commands
 }
 

@@ -189,25 +189,39 @@ export function generateOpenCodeAgent(agent: ClaudeAgent): string {
 }
 
 /**
+ * Options for writing agents
+ */
+export interface WriteAgentsOptions {
+  /** Prefix for generated files (default: "claude_") */
+  filePrefix?: string
+  /** Whether to log output */
+  verbose?: boolean
+}
+
+/**
  * Write converted agents to OpenCode directory
  */
 export async function writeOpenCodeAgents(
   agents: ClaudeAgent[],
-  openCodeDir: string
+  openCodeDir: string,
+  options?: WriteAgentsOptions
 ): Promise<void> {
   const agentsDir = join(openCodeDir, "agent")
+  const prefix = options?.filePrefix ?? "claude_"
+  const verbose = options?.verbose ?? true
 
   // Ensure the directory exists
   await mkdir(agentsDir, { recursive: true })
 
   for (const agent of agents) {
     const agentContent = generateOpenCodeAgent(agent)
-    // Prefix with 'claude_' to distinguish from native OpenCode agents
-    const fileName = `claude_${agent.name}.md`
+    const fileName = `${prefix}${agent.name}.md`
     const filePath = join(agentsDir, fileName)
 
     await writeFile(filePath, agentContent, "utf-8")
-    console.log(`[crosstrain] Wrote OpenCode agent: ${filePath}`)
+    if (verbose) {
+      console.log(`[crosstrain] Wrote OpenCode agent: ${filePath}`)
+    }
   }
 }
 
@@ -217,10 +231,11 @@ export async function writeOpenCodeAgents(
 export async function syncAgentsToOpenCode(
   claudeDir: string,
   homeDir: string,
-  openCodeDir: string
+  openCodeDir: string,
+  options?: WriteAgentsOptions
 ): Promise<ClaudeAgent[]> {
   const agents = await discoverAgents(claudeDir, homeDir)
-  await writeOpenCodeAgents(agents, openCodeDir)
+  await writeOpenCodeAgents(agents, openCodeDir, options)
   return agents
 }
 

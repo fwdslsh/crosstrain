@@ -9,6 +9,12 @@
  *
  * Assets are loaded automatically when OpenCode starts and watched for
  * changes to provide dynamic updates during a session.
+ *
+ * Configuration can be provided via:
+ * - Plugin options passed directly
+ * - opencode.json (under plugins.crosstrain, plugin.crosstrain, or crosstrain)
+ * - .crosstrainrc.json or crosstrain.config.json
+ * - Environment variables (CROSSTRAIN_*)
  */
 
 import { join } from "path"
@@ -18,7 +24,16 @@ import { homedir } from "os"
 import type { Plugin, ToolDefinition } from "./plugin-types"
 import { tool, toolSchema } from "./plugin-types"
 import { mkdir } from "fs/promises"
-import { existsSync } from "fs"
+
+// Import configuration
+import type { CrosstrainConfig, ResolvedCrossstrainConfig } from "./types"
+import {
+  loadConfig,
+  validateConfig,
+  createLogger,
+  getResolvedPaths,
+  type ConfigLogger,
+} from "./utils/config"
 
 // Import loaders
 import { createToolsFromSkills } from "./loaders/skills"
@@ -37,6 +52,7 @@ import {
 // Re-export types and utilities for potential external use
 export * from "./types"
 export * from "./utils/parser"
+export * from "./utils/config"
 
 /**
  * State management for dynamic reloading
@@ -49,29 +65,71 @@ interface PluginState {
     toolExecuteAfter?: (input: any, output: any) => Promise<void>
     event?: (params: { event: any }) => Promise<void>
   }
+  config: ResolvedCrossstrainConfig
+  logger: ConfigLogger
+}
+
+/**
+ * Plugin context with optional crosstrain configuration
+ */
+interface PluginContext {
+  project?: { path?: string }
+  directory: string
+  worktree?: string
+  client?: unknown
+  $?: unknown
+  /** Crosstrain plugin configuration */
+  crosstrain?: CrosstrainConfig
+}
+
+/**
+ * Create the crosstrain plugin with optional configuration
+ */
+export function createCrossstrainPlugin(options?: CrosstrainConfig): Plugin {
+  return async (ctx: PluginContext) => {
+    return CrosstrainPlugin({ ...ctx, crosstrain: options })
+  }
 }
 
 /**
  * Main plugin export
  */
-export const CrosstrainPlugin: Plugin = async ({
-  project,
-  client,
-  $,
-  directory,
-  worktree,
-}) => {
-  const homeDir = homedir()
-  const claudeDir = join(directory, ".claude")
-  const openCodeDir = join(directory, ".opencode")
+export const CrosstrainPlugin: Plugin = async (ctx: PluginContext) => {
+  const {
+    directory,
+    crosstrain: pluginOptions,
+  } = ctx
 
-  console.log("[crosstrain] Initializing Claude Code extension loader...")
+  // Load and resolve configuration
+  const config = await loadConfig(directory, pluginOptions)
+  const logger = createLogger(config)
+
+  // Check if plugin is enabled
+  if (!config.enabled) {
+    logger.info("Plugin is disabled via configuration")
+    return {}
+  }
+
+  // Validate configuration
+  const warnings = validateConfig(config)
+  for (const warning of warnings) {
+    logger.warn(`Config warning: ${warning}`)
+  }
+
+  logger.info("Initializing Claude Code extension loader...")
+  logger.log("Configuration:", config)
+
+  // Resolve paths
+  const { claudeDir, openCodeDir } = getResolvedPaths(directory, config)
+  const homeDir = config.loadUserAssets ? homedir() : ""
 
   // Check if there are any Claude Code assets to load
-  if (!hasClaudeCodeAssets(claudeDir, homeDir)) {
-    console.log(
-      "[crosstrain] No Claude Code assets found, plugin will remain idle"
-    )
+  const hasAssets = config.loadUserAssets
+    ? hasClaudeCodeAssets(claudeDir, homeDir)
+    : hasClaudeCodeAssets(claudeDir, "")
+
+  if (!hasAssets) {
+    logger.info("No Claude Code assets found, plugin will remain idle")
     return {}
   }
 
@@ -80,6 +138,8 @@ export const CrosstrainPlugin: Plugin = async ({
     watcher: null,
     tools: {},
     hookHandlers: {},
+    config,
+    logger,
   }
 
   // Ensure OpenCode directories exist
@@ -89,112 +149,133 @@ export const CrosstrainPlugin: Plugin = async ({
 
   // Get summary of available assets
   const summary = await getAssetSummary(claudeDir, homeDir)
-  console.log("[crosstrain] Asset summary:", summary)
+  logger.info("Asset summary:", summary)
+
+  // Loader options
+  const loaderOptions = {
+    filePrefix: config.filePrefix,
+    verbose: config.verbose,
+  }
 
   // Load skills as tools
-  if (summary.hasSkills) {
+  if (config.loaders.skills && summary.hasSkills) {
     try {
       state.tools = await createToolsFromSkills(claudeDir, homeDir)
-      console.log(
-        `[crosstrain] Loaded ${Object.keys(state.tools).length} skills as tools`
-      )
+      logger.info(`Loaded ${Object.keys(state.tools).length} skills as tools`)
     } catch (error) {
-      console.error("[crosstrain] Error loading skills:", error)
+      logger.error("Error loading skills:", error)
     }
   }
 
   // Sync agents to OpenCode format
-  if (summary.hasAgents) {
+  if (config.loaders.agents && summary.hasAgents) {
     try {
-      const agents = await syncAgentsToOpenCode(claudeDir, homeDir, openCodeDir)
-      console.log(`[crosstrain] Synced ${agents.length} agents to OpenCode`)
+      const agents = await syncAgentsToOpenCode(
+        claudeDir,
+        homeDir,
+        openCodeDir,
+        loaderOptions
+      )
+      logger.info(`Synced ${agents.length} agents to OpenCode`)
     } catch (error) {
-      console.error("[crosstrain] Error syncing agents:", error)
+      logger.error("Error syncing agents:", error)
     }
   }
 
   // Sync commands to OpenCode format
-  if (summary.hasCommands) {
+  if (config.loaders.commands && summary.hasCommands) {
     try {
       const commands = await syncCommandsToOpenCode(
         claudeDir,
         homeDir,
-        openCodeDir
+        openCodeDir,
+        loaderOptions
       )
-      console.log(`[crosstrain] Synced ${commands.length} commands to OpenCode`)
+      logger.info(`Synced ${commands.length} commands to OpenCode`)
     } catch (error) {
-      console.error("[crosstrain] Error syncing commands:", error)
+      logger.error("Error syncing commands:", error)
     }
   }
 
   // Build hook handlers
-  if (summary.hasHooks) {
+  if (config.loaders.hooks && summary.hasHooks) {
     try {
       state.hookHandlers = await buildHookHandlers(claudeDir, homeDir)
-      console.log("[crosstrain] Built hook handlers from Claude settings")
+      logger.info("Built hook handlers from Claude settings")
     } catch (error) {
-      console.error("[crosstrain] Error building hook handlers:", error)
+      logger.error("Error building hook handlers:", error)
     }
   }
 
-  // Set up file watcher for dynamic updates
-  state.watcher = createWatcher({
-    claudeDir,
-    homeDir,
-    onSkillChange: async () => {
-      console.log("[crosstrain] Skills changed, reloading...")
-      try {
-        state.tools = await createToolsFromSkills(claudeDir, homeDir)
-        console.log(
-          `[crosstrain] Reloaded ${Object.keys(state.tools).length} skills`
-        )
-      } catch (error) {
-        console.error("[crosstrain] Error reloading skills:", error)
-      }
-    },
-    onAgentChange: async () => {
-      console.log("[crosstrain] Agents changed, resyncing...")
-      try {
-        const agents = await syncAgentsToOpenCode(
-          claudeDir,
-          homeDir,
-          openCodeDir
-        )
-        console.log(`[crosstrain] Resynced ${agents.length} agents`)
-      } catch (error) {
-        console.error("[crosstrain] Error resyncing agents:", error)
-      }
-    },
-    onCommandChange: async () => {
-      console.log("[crosstrain] Commands changed, resyncing...")
-      try {
-        const commands = await syncCommandsToOpenCode(
-          claudeDir,
-          homeDir,
-          openCodeDir
-        )
-        console.log(`[crosstrain] Resynced ${commands.length} commands`)
-      } catch (error) {
-        console.error("[crosstrain] Error resyncing commands:", error)
-      }
-    },
-    onHookChange: async () => {
-      console.log("[crosstrain] Hooks changed, rebuilding handlers...")
-      try {
-        state.hookHandlers = await buildHookHandlers(claudeDir, homeDir)
-        console.log("[crosstrain] Rebuilt hook handlers")
-      } catch (error) {
-        console.error("[crosstrain] Error rebuilding hook handlers:", error)
-      }
-    },
-  })
+  // Set up file watcher for dynamic updates (if enabled)
+  if (config.watch) {
+    state.watcher = createWatcher({
+      claudeDir,
+      homeDir: config.loadUserAssets ? homeDir : "",
+      onSkillChange: config.loaders.skills
+        ? async () => {
+            logger.info("Skills changed, reloading...")
+            try {
+              state.tools = await createToolsFromSkills(claudeDir, homeDir)
+              logger.info(`Reloaded ${Object.keys(state.tools).length} skills`)
+            } catch (error) {
+              logger.error("Error reloading skills:", error)
+            }
+          }
+        : undefined,
+      onAgentChange: config.loaders.agents
+        ? async () => {
+            logger.info("Agents changed, resyncing...")
+            try {
+              const agents = await syncAgentsToOpenCode(
+                claudeDir,
+                homeDir,
+                openCodeDir,
+                loaderOptions
+              )
+              logger.info(`Resynced ${agents.length} agents`)
+            } catch (error) {
+              logger.error("Error resyncing agents:", error)
+            }
+          }
+        : undefined,
+      onCommandChange: config.loaders.commands
+        ? async () => {
+            logger.info("Commands changed, resyncing...")
+            try {
+              const commands = await syncCommandsToOpenCode(
+                claudeDir,
+                homeDir,
+                openCodeDir,
+                loaderOptions
+              )
+              logger.info(`Resynced ${commands.length} commands`)
+            } catch (error) {
+              logger.error("Error resyncing commands:", error)
+            }
+          }
+        : undefined,
+      onHookChange: config.loaders.hooks
+        ? async () => {
+            logger.info("Hooks changed, rebuilding handlers...")
+            try {
+              state.hookHandlers = await buildHookHandlers(claudeDir, homeDir)
+              logger.info("Rebuilt hook handlers")
+            } catch (error) {
+              logger.error("Error rebuilding hook handlers:", error)
+            }
+          }
+        : undefined,
+    })
+    logger.log("File watcher initialized")
+  }
 
-  console.log("[crosstrain] Plugin initialized successfully")
+  logger.info("Plugin initialized successfully")
 
   // Return the plugin interface
   return {
     // Expose tools converted from skills
-    tool: state.tools,
+    tool: Object.keys(state.tools).length > 0 ? state.tools : undefined,
 
     // Tool execution hooks (from Claude hooks)
     "tool.execute.before": state.hookHandlers.toolExecuteBefore
