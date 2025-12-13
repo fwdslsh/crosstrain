@@ -6,7 +6,7 @@ The crosstrain CLI converts Claude Code assets (skills, agents, commands, hooks,
 
 ```bash
 # Install globally
-bun install -g crosstrain
+bun install -g @fwdslsh/crosstrain"
 
 # Or run directly with bunx
 bunx crosstrain --help

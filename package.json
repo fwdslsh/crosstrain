@@ -1,6 +1,6 @@
 {
   "name": "@fwdslsh/crosstrain",
-  "version": "0.0.4",
+  "version": "0.1.0",
   "description": "OpenCode plugin that loads Claude Code extension points (skills, agents, commands, hooks) into OpenCode",
   "type": "module",
   "main": "index.ts",

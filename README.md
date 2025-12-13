@@ -20,7 +20,7 @@ Crosstrain bridges Claude Code's extension ecosystem to OpenCode:
 
 ```bash
 # Install globally with bun
-bun install -g crosstrain
+bun install -g @fwdslsh/crosstrain"
 
 # Or run directly
 bunx crosstrain --help

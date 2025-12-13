@@ -91,6 +91,17 @@ if [ ! -f "$INSTALL_DIR/settings.json" ]; then
 EOF
 fi
 
+# Create loader file in plugin directory (OpenCode loads .ts files directly)
+LOADER_FILE="$(dirname "$INSTALL_DIR")/crosstrain.ts"
+echo "Creating loader file at $LOADER_FILE..."
+cat > "$LOADER_FILE" << 'EOF'
+/**
+ * Crosstrain Plugin Loader
+ * OpenCode loads plugins from files directly in .opencode/plugin/
+ */
+export { CrosstrainPlugin, default } from "./crosstrain/index"
+EOF
+
 echo ""
 echo -e "${GREEN}Crosstrain installed successfully!${NC}"
 echo ""
