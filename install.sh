@@ -4,16 +4,13 @@
 
 set -e
 
-# Colors for output
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# GitHub repository
-REPO="fwdslsh/crosstrain"
-
-# Default installation location
+REPO_URL="https://github.com/fwdslsh/crosstrain.git"
 INSTALL_TYPE="${1:-project}"
 
 echo -e "${GREEN}Crosstrain Plugin Installer${NC}"
@@ -36,13 +33,8 @@ case "$INSTALL_TYPE" in
 esac
 
 # Check for required tools
-if ! command -v curl &> /dev/null; then
-    echo -e "${RED}Error: curl is not installed.${NC}"
-    exit 1
-fi
-
-if ! command -v tar &> /dev/null; then
-    echo -e "${RED}Error: tar is not installed.${NC}"
+if ! command -v git &> /dev/null; then
+    echo -e "${RED}Error: git is not installed.${NC}"
     exit 1
 fi
 
@@ -52,50 +44,62 @@ if ! command -v bun &> /dev/null; then
     exit 1
 fi
 
-# Get latest release URL
-echo "Fetching latest release..."
-RELEASE_URL=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" | grep -o '"browser_download_url": *"[^"]*\.tar\.gz"' | head -1 | cut -d'"' -f4)
+# Create parent directory
+mkdir -p "$(dirname "$INSTALL_DIR")"
 
-if [ -z "$RELEASE_URL" ]; then
-    echo -e "${RED}Error: Could not find latest release.${NC}"
-    echo "Please check https://github.com/$REPO/releases"
-    exit 1
+# Clone or update repository
+if [ -d "$INSTALL_DIR/.git" ]; then
+    echo "Updating existing installation..."
+    cd "$INSTALL_DIR"
+    git pull --ff-only
+else
+    # Remove any existing non-git directory
+    if [ -d "$INSTALL_DIR" ]; then
+        echo "Removing existing installation..."
+        rm -rf "$INSTALL_DIR"
+    fi
+
+    echo "Cloning repository..."
+    git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"
+    cd "$INSTALL_DIR"
 fi
-
-echo "Downloading from: $RELEASE_URL"
-
-# Create temp directory for download
-TEMP_DIR=$(mktemp -d)
-trap "rm -rf $TEMP_DIR" EXIT
-
-# Download and extract
-curl -fsSL "$RELEASE_URL" -o "$TEMP_DIR/crosstrain.tar.gz"
-tar -xzf "$TEMP_DIR/crosstrain.tar.gz" -C "$TEMP_DIR"
-
-# Create installation directory
-echo "Installing to $INSTALL_DIR..."
-mkdir -p "$INSTALL_DIR"
-
-# Copy plugin files
-cp -r "$TEMP_DIR/crosstrain/"* "$INSTALL_DIR/"
 
 # Install dependencies
 echo "Installing dependencies..."
-cd "$INSTALL_DIR"
 bun install --production
 
+# Verify required files exist
+if [ ! -f "$INSTALL_DIR/index.ts" ]; then
+    echo -e "${RED}Error: index.ts not found. Installation may be incomplete.${NC}"
+    exit 1
+fi
+
+if [ ! -f "$INSTALL_DIR/settings.json" ]; then
+    echo -e "${YELLOW}Warning: settings.json not found. Creating default...${NC}"
+    cat > "$INSTALL_DIR/settings.json" << 'EOF'
+{
+  "$schema": "./settings.schema.json",
+  "enabled": true,
+  "claudeDir": ".claude",
+  "openCodeDir": ".opencode",
+  "loadUserAssets": true,
+  "loadUserSettings": true,
+  "watch": true,
+  "filePrefix": "claude_",
+  "verbose": false
+}
+EOF
+fi
+
 echo ""
-echo -e "${GREEN}Crosstrain plugin installed successfully!${NC}"
+echo -e "${GREEN}Crosstrain installed successfully!${NC}"
 echo ""
-echo "The plugin will be automatically loaded when OpenCode starts."
+echo "The plugin will be loaded when OpenCode starts."
 echo ""
-echo "To use Claude Code extensions:"
-echo "  1. Create .claude/ directory in your project with skills, agents, commands, or hooks"
-echo "  2. Restart OpenCode to load the extensions"
+echo "Quick start:"
+echo "  1. Create .claude/ directory with skills, agents, or commands"
+echo "  2. Restart OpenCode"
 echo ""
-echo "Available tools after loading:"
-echo "  - crosstrain_info: Show loaded Claude Code assets"
-echo "  - crosstrain_list_marketplaces: List configured marketplaces"
-echo "  - crosstrain_install_plugin: Install a plugin from marketplace"
+echo "Configuration: $INSTALL_DIR/settings.json"
 echo ""
-echo -e "For more information, see: ${YELLOW}https://github.com/$REPO${NC}"
+echo -e "Documentation: ${YELLOW}https://github.com/fwdslsh/crosstrain${NC}"
