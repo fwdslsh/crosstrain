@@ -25,6 +25,27 @@ import { readTextFile } from "../utils/parser"
 const GIT_CACHE_DIR = join(tmpdir(), "crosstrain-marketplaces")
 
 /**
+ * Validate and sanitize a Git ref (branch, tag, or commit)
+ * Only allows alphanumeric, hyphens, underscores, slashes, and dots
+ */
+function validateGitRef(ref: string): string {
+  // Allow common ref patterns: branches, tags, commits
+  // Valid: main, v1.0.0, feature/branch, origin/main, abc123def
+  if (!/^[a-zA-Z0-9._\/-]+$/.test(ref)) {
+    throw new Error(`Invalid Git ref format: ${ref}`)
+  }
+  return ref
+}
+
+/**
+ * Escape shell argument for safe execution
+ * Uses single quotes and escapes any single quotes in the argument
+ */
+function escapeShellArg(arg: string): string {
+  return `'${arg.replace(/'/g, "'\\''")}'`
+}
+
+/**
  * Parse a marketplace manifest file
  */
 export async function parseMarketplaceManifest(
@@ -85,11 +106,18 @@ async function cloneOrUpdateGitRepo(
   ref?: string,
   verbose: boolean = false
 ): Promise<string> {
+  // Validate ref if provided
+  if (ref) {
+    ref = validateGitRef(ref)
+  }
+
   // Ensure cache directory exists
   await mkdir(GIT_CACHE_DIR, { recursive: true })
 
   const cacheDirName = getGitCacheDirName(url)
   const targetPath = join(GIT_CACHE_DIR, cacheDirName)
+  const escapedUrl = escapeShellArg(url)
+  const escapedTargetPath = escapeShellArg(targetPath)
 
   try {
     if (existsSync(targetPath)) {
@@ -107,28 +135,39 @@ async function cloneOrUpdateGitRepo(
 
         // Checkout specified ref or default branch
         if (ref) {
-          execSync(`git checkout ${ref}`, {
+          const escapedRef = escapeShellArg(ref)
+          execSync(`git checkout ${escapedRef}`, {
             cwd: targetPath,
             stdio: verbose ? "inherit" : "pipe",
           })
-          execSync(`git pull origin ${ref}`, {
+          execSync(`git pull origin ${escapedRef}`, {
             cwd: targetPath,
             stdio: verbose ? "inherit" : "pipe",
           })
         } else {
-          // Get default branch and update
-          const defaultBranch = execSync(
-            "git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@'",
-            { cwd: targetPath, encoding: "utf-8" }
-          ).trim()
-          execSync(`git checkout ${defaultBranch}`, {
-            cwd: targetPath,
-            stdio: verbose ? "inherit" : "pipe",
-          })
-          execSync(`git pull`, {
-            cwd: targetPath,
-            stdio: verbose ? "inherit" : "pipe",
-          })
+          // Get default branch using cross-platform approach
+          try {
+            const defaultBranch = execSync(
+              "git rev-parse --abbrev-ref origin/HEAD",
+              { cwd: targetPath, encoding: "utf-8" }
+            ).trim().replace(/^origin\//, "")
+            
+            const escapedBranch = escapeShellArg(defaultBranch)
+            execSync(`git checkout ${escapedBranch}`, {
+              cwd: targetPath,
+              stdio: verbose ? "inherit" : "pipe",
+            })
+            execSync(`git pull`, {
+              cwd: targetPath,
+              stdio: verbose ? "inherit" : "pipe",
+            })
+          } catch {
+            // Fallback: just pull current branch
+            execSync(`git pull`, {
+              cwd: targetPath,
+              stdio: verbose ? "inherit" : "pipe",
+            })
+          }
         }
       } catch (updateError) {
         // If update fails, try removing and re-cloning
@@ -146,10 +185,16 @@ async function cloneOrUpdateGitRepo(
         console.log(`[crosstrain] Cloning Git repository: ${url}`)
       }
 
-      const cloneArgs = ref ? `--branch ${ref}` : ""
-      execSync(`git clone ${cloneArgs} ${url} ${targetPath}`, {
-        stdio: verbose ? "inherit" : "pipe",
-      })
+      if (ref) {
+        const escapedRef = escapeShellArg(ref)
+        execSync(`git clone --branch ${escapedRef} ${escapedUrl} ${escapedTargetPath}`, {
+          stdio: verbose ? "inherit" : "pipe",
+        })
+      } else {
+        execSync(`git clone ${escapedUrl} ${escapedTargetPath}`, {
+          stdio: verbose ? "inherit" : "pipe",
+        })
+      }
     }
 
     return targetPath
