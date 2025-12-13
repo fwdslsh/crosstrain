@@ -53,6 +53,7 @@ describe("Crosstrain CLI", () => {
       expect(result.stdout).toContain("agent")
       expect(result.stdout).toContain("mcp")
       expect(result.stdout).toContain("plugin")
+      expect(result.stdout).toContain("list")
       expect(result.stdout).toContain("all")
     })
 
@@ -691,6 +692,56 @@ describe("Crosstrain CLI", () => {
 
       // Files should NOT exist
       expect(existsSync(join(testDir.openCodeDir, "command"))).toBe(false)
+    })
+  })
+
+  describe("List Command", () => {
+    it("should error when source not provided", async () => {
+      const result = await runCLI(["list"])
+
+      expect(result.exitCode).toBe(1)
+      expect(result.stdout).toContain("Please provide a marketplace source")
+    })
+
+    it("should display help in list command", async () => {
+      const result = await runCLI(["--help"])
+
+      expect(result.stdout).toContain("list")
+      expect(result.stdout).toContain("List plugins in a marketplace")
+    })
+
+    it("should accept ls as alias for list", async () => {
+      const result = await runCLI(["ls"])
+
+      expect(result.exitCode).toBe(1)
+      expect(result.stdout).toContain("Please provide a marketplace source")
+    })
+  })
+
+  describe("Remote Plugin Sources", () => {
+    it("should show helpful error when plugin path not provided for remote", async () => {
+      // This test simulates what happens when only org/repo is given without plugin path
+      // Note: We can't actually test remote fetching without network, but we can test the logic
+      const result = await runCLI(["plugin", "some-nonexistent-org/some-repo"])
+
+      // Since the repo doesn't exist, it will fail - but the error message should be helpful
+      expect(result.exitCode).toBe(1)
+    })
+
+    it("should provide examples in plugin error message", async () => {
+      const result = await runCLI(["plugin"])
+
+      expect(result.exitCode).toBe(1)
+      expect(result.stdout).toContain("org/repo/plugin-name")
+      expect(result.stdout).toContain("@v1.0.0")
+    })
+
+    it("should detect local vs remote sources correctly", async () => {
+      // Local path that exists should be treated as local
+      const result = await runCLI(["plugin", ".claude", "--dry-run"])
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("Converting Plugin")
     })
   })
 

@@ -11,7 +11,8 @@
  *   agent <path>      Convert a Claude Code agent to OpenCode
  *   hook              Convert Claude Code hooks to OpenCode event handlers
  *   mcp [path]        Convert Claude Code MCP servers to OpenCode format
- *   plugin <path>     Convert a Claude Code plugin directory to OpenCode assets
+ *   plugin <source>   Convert a Claude Code plugin (local path or org/repo/plugin)
+ *   list <source>     List plugins in a marketplace (org/repo or URL)
  *   all               Convert all Claude Code assets
  *   init              Initialize a new OpenCode plugin for skills
  *
@@ -27,7 +28,9 @@
 
 import { join, dirname, basename, resolve, extname } from "path"
 import { existsSync } from "fs"
-import { mkdir, writeFile, readFile } from "fs/promises"
+import { mkdir, writeFile, readFile, rm } from "fs/promises"
+import { tmpdir } from "os"
+import { execSync } from "child_process"
 import {
   discoverSkills,
   convertSkillToTool,
@@ -58,6 +61,14 @@ import {
   getMCPSummary,
 } from "./loaders/mcp"
 import {
+  loadMarketplace,
+  discoverPluginsInMarketplace,
+  parseMarketplaceManifest,
+  parsePluginManifest,
+  resolveMarketplaceSource,
+  clearGitMarketplaceCache,
+} from "./loaders/marketplace"
+import {
   parseMarkdownWithFrontmatter,
   readTextFile,
   extractNameFromPath,
@@ -70,6 +81,7 @@ import type {
   ClaudeAgentFrontmatter,
   ClaudeCommand,
   ClaudeCommandFrontmatter,
+  ParsedPlugin,
 } from "./types"
 
 // Version from package.json
@@ -145,7 +157,8 @@ ${colors.bold}COMMANDS:${colors.reset}
   ${colors.cyan}agent${colors.reset} <path>      Convert a Claude Code agent (.md file)
   ${colors.cyan}hook${colors.reset}              Display Claude Code hooks configuration
   ${colors.cyan}mcp${colors.reset} [path]        Convert Claude Code MCP servers (.mcp.json)
-  ${colors.cyan}plugin${colors.reset} <path>     Convert a Claude Code plugin directory to OpenCode
+  ${colors.cyan}plugin${colors.reset} <source>   Convert a Claude Code plugin (local or remote)
+  ${colors.cyan}list${colors.reset} <source>     List plugins in a marketplace (org/repo or URL)
   ${colors.cyan}all${colors.reset}               Convert all Claude Code assets in current project
   ${colors.cyan}sync${colors.reset}              Alias for 'all'
   ${colors.cyan}init${colors.reset}              Initialize a new OpenCode plugin for skills
@@ -166,8 +179,14 @@ ${colors.bold}EXAMPLES:${colors.reset}
   # Convert a skill directory
   crosstrain skill .claude/skills/pdf-extractor
 
-  # Convert a Claude Code plugin
+  # Convert a local plugin
   crosstrain plugin .claude/plugins/my-plugin
+
+  # Convert a plugin from a GitHub marketplace
+  crosstrain plugin anthropics/claude-plugins/code-review
+
+  # List plugins in a marketplace
+  crosstrain list anthropics/claude-plugins
 
   # Convert all assets with dry-run
   crosstrain all --dry-run
@@ -661,18 +680,339 @@ async function handleMCP(path: string | undefined, opts: CLIOptions): Promise<vo
   }
 }
 
-async function handlePlugin(path: string | undefined, opts: CLIOptions): Promise<void> {
-  if (!path) {
-    error("Please provide a path to a plugin directory")
-    log("Usage: crosstrain plugin <path>")
+// ========================================
+// Git/Remote Helpers
+// ========================================
+
+const GIT_CACHE_DIR = join(tmpdir(), "crosstrain-cli-cache")
+
+/**
+ * Check if a source looks like a remote Git reference
+ * (GitHub shorthand or URL, possibly with a subpath)
+ */
+function isRemoteSource(source: string): boolean {
+  // Local paths start with ., /, or are just directory names that exist
+  if (source.startsWith("./") || source.startsWith("../") || source.startsWith("/")) {
+    return false
+  }
+  // Git URLs
+  if (source.startsWith("http://") || source.startsWith("https://") || source.startsWith("git@")) {
+    return true
+  }
+  // GitHub shorthand: org/repo or org/repo/path
+  if (source.includes("/") && !existsSync(resolve(source))) {
+    return true
+  }
+  return false
+}
+
+/**
+ * Parse a remote source into repo and subpath
+ * Examples:
+ *   "anthropics/claude-plugins" -> { repo: "anthropics/claude-plugins", subpath: "" }
+ *   "anthropics/claude-plugins/code-review" -> { repo: "anthropics/claude-plugins", subpath: "code-review" }
+ *   "https://github.com/org/repo" -> { repo: "https://github.com/org/repo", subpath: "" }
+ */
+function parseRemoteSource(source: string): { repo: string; subpath: string; ref?: string } {
+  // Handle full URLs
+  if (source.startsWith("http://") || source.startsWith("https://") || source.startsWith("git@")) {
+    // Check for @ref syntax (e.g., url@v1.0.0)
+    const refMatch = source.match(/^(.+)@([^@/]+)$/)
+    if (refMatch) {
+      return { repo: refMatch[1], subpath: "", ref: refMatch[2] }
+    }
+    return { repo: source, subpath: "" }
+  }
+
+  // Handle GitHub shorthand with optional @ref
+  // Format: org/repo[/subpath][@ref]
+  const refMatch = source.match(/^(.+)@([^@/]+)$/)
+  let pathPart = source
+  let ref: string | undefined
+
+  if (refMatch) {
+    pathPart = refMatch[1]
+    ref = refMatch[2]
+  }
+
+  const parts = pathPart.split("/")
+
+  if (parts.length < 2) {
+    return { repo: source, subpath: "", ref }
+  }
+
+  // First two parts are org/repo, rest is subpath
+  const repo = `${parts[0]}/${parts[1]}`
+  const subpath = parts.slice(2).join("/")
+
+  return { repo, subpath, ref }
+}
+
+/**
+ * Clone a Git repository to a temporary location
+ */
+async function cloneRepo(
+  source: string,
+  ref?: string,
+  verbose: boolean = false
+): Promise<string> {
+  await mkdir(GIT_CACHE_DIR, { recursive: true })
+
+  // Create a safe directory name from the source
+  const safeName = source
+    .replace(/^(https?:\/\/|git@)/, "")
+    .replace(/\.git$/, "")
+    .replace(/[^a-zA-Z0-9-_]/g, "-")
+  const targetPath = join(GIT_CACHE_DIR, safeName)
+
+  // Convert GitHub shorthand to URL
+  let repoUrl = source
+  if (!source.startsWith("http://") && !source.startsWith("https://") && !source.startsWith("git@")) {
+    repoUrl = `https://github.com/${source}`
+  }
+
+  try {
+    if (existsSync(targetPath)) {
+      // Update existing clone
+      if (verbose) {
+        info(`Updating cached repository: ${source}`)
+      }
+      try {
+        execSync("git fetch --all --tags", { cwd: targetPath, stdio: verbose ? "inherit" : "pipe" })
+        if (ref) {
+          execSync(`git checkout '${ref}'`, { cwd: targetPath, stdio: verbose ? "inherit" : "pipe" })
+          execSync(`git pull origin '${ref}' 2>/dev/null || true`, { cwd: targetPath, stdio: verbose ? "inherit" : "pipe" })
+        } else {
+          execSync("git pull", { cwd: targetPath, stdio: verbose ? "inherit" : "pipe" })
+        }
+      } catch {
+        // If update fails, remove and re-clone
+        if (verbose) {
+          warn("Update failed, re-cloning...")
+        }
+        await rm(targetPath, { recursive: true, force: true })
+      }
+    }
+
+    if (!existsSync(targetPath)) {
+      if (verbose) {
+        info(`Cloning repository: ${repoUrl}`)
+      }
+      if (ref) {
+        execSync(`git clone --branch '${ref}' '${repoUrl}' '${targetPath}'`, {
+          stdio: verbose ? "inherit" : "pipe",
+        })
+      } else {
+        execSync(`git clone '${repoUrl}' '${targetPath}'`, {
+          stdio: verbose ? "inherit" : "pipe",
+        })
+      }
+    }
+
+    return targetPath
+  } catch (err) {
+    throw new Error(`Failed to clone repository ${repoUrl}: ${err instanceof Error ? err.message : String(err)}`)
+  }
+}
+
+// ========================================
+// List Command Handler
+// ========================================
+
+async function handleList(source: string | undefined, opts: CLIOptions): Promise<void> {
+  if (!source) {
+    error("Please provide a marketplace source")
+    log("Usage: crosstrain list <org/repo>")
+    log("")
+    log("Examples:")
+    log("  crosstrain list anthropics/claude-plugins")
+    log("  crosstrain list https://github.com/org/marketplace")
     process.exit(1)
   }
 
-  const pluginPath = resolve(path)
+  heading("Browsing Marketplace")
 
-  if (!existsSync(pluginPath)) {
-    error(`Plugin directory not found at: ${path}`)
+  const { repo, ref } = parseRemoteSource(source)
+  info(`Source: ${repo}${ref ? ` (ref: ${ref})` : ""}`)
+
+  // Clone/update the marketplace repo
+  let marketplacePath: string
+  try {
+    marketplacePath = await cloneRepo(repo, ref, opts.verbose)
+  } catch (err) {
+    error(`Failed to fetch marketplace: ${err instanceof Error ? err.message : String(err)}`)
     process.exit(1)
+  }
+
+  // Parse the marketplace manifest
+  const manifest = await parseMarketplaceManifest(marketplacePath)
+
+  if (!manifest) {
+    // No marketplace.json, try to discover plugins directly
+    warn("No marketplace manifest found (.claude-plugin/marketplace.json)")
+    log("Scanning for plugins in repository...")
+
+    // Look for plugin directories (directories containing .claude-plugin/plugin.json)
+    const { readdir: readdirAsync, stat: statAsync } = await import("fs/promises")
+    const entries = await readdirAsync(marketplacePath, { withFileTypes: true })
+    const plugins: { name: string; path: string; description?: string }[] = []
+
+    for (const entry of entries) {
+      if (entry.isDirectory() && !entry.name.startsWith(".")) {
+        const pluginJsonPath = join(marketplacePath, entry.name, ".claude-plugin", "plugin.json")
+        if (existsSync(pluginJsonPath)) {
+          const pluginManifest = await parsePluginManifest(join(marketplacePath, entry.name))
+          if (pluginManifest) {
+            plugins.push({
+              name: pluginManifest.name || entry.name,
+              path: entry.name,
+              description: pluginManifest.description,
+            })
+          }
+        }
+      }
+    }
+
+    if (plugins.length === 0) {
+      warn("No plugins found in this repository")
+      log("")
+      log("A valid marketplace should have:")
+      log("  - .claude-plugin/marketplace.json with plugin listings, or")
+      log("  - Subdirectories with .claude-plugin/plugin.json")
+      return
+    }
+
+    log("")
+    log(`${colors.bold}Available Plugins (${plugins.length})${colors.reset}`)
+    log(colors.dim + "─".repeat(60) + colors.reset)
+
+    for (const plugin of plugins) {
+      log(`  ${colors.cyan}${plugin.name}${colors.reset}`)
+      if (plugin.description) {
+        log(`    ${colors.dim}${plugin.description}${colors.reset}`)
+      }
+      log(`    ${colors.dim}crosstrain plugin ${repo}/${plugin.path}${colors.reset}`)
+      log("")
+    }
+
+    return
+  }
+
+  // Display marketplace info
+  log("")
+  log(`${colors.bold}${manifest.name || "Unnamed Marketplace"}${colors.reset}`)
+  if (manifest.description) {
+    log(colors.dim + manifest.description + colors.reset)
+  }
+  if (manifest.owner) {
+    log(`${colors.dim}Owner: ${manifest.owner.name}${manifest.owner.url ? ` (${manifest.owner.url})` : ""}${colors.reset}`)
+  }
+
+  if (!manifest.plugins || manifest.plugins.length === 0) {
+    warn("No plugins registered in this marketplace")
+    return
+  }
+
+  log("")
+  log(`${colors.bold}Available Plugins (${manifest.plugins.length})${colors.reset}`)
+  log(colors.dim + "─".repeat(60) + colors.reset)
+
+  for (const entry of manifest.plugins) {
+    const pluginPath = join(marketplacePath, entry.source)
+    const pluginManifest = await parsePluginManifest(pluginPath)
+
+    // Check what assets the plugin has
+    const hasSkills = existsSync(join(pluginPath, "skills"))
+    const hasAgents = existsSync(join(pluginPath, "agents"))
+    const hasCommands = existsSync(join(pluginPath, "commands"))
+    const hasMCP = existsSync(join(pluginPath, ".mcp.json"))
+
+    const assets: string[] = []
+    if (hasSkills) assets.push("skills")
+    if (hasAgents) assets.push("agents")
+    if (hasCommands) assets.push("commands")
+    if (hasMCP) assets.push("mcp")
+
+    log(`  ${colors.cyan}${entry.name}${colors.reset}${entry.version ? ` v${entry.version}` : ""}`)
+    const desc = entry.description || pluginManifest?.description
+    if (desc) {
+      log(`    ${colors.dim}${desc}${colors.reset}`)
+    }
+    if (assets.length > 0) {
+      log(`    ${colors.dim}Contains: ${assets.join(", ")}${colors.reset}`)
+    }
+    if (entry.tags && entry.tags.length > 0) {
+      log(`    ${colors.dim}Tags: ${entry.tags.join(", ")}${colors.reset}`)
+    }
+    log(`    ${colors.dim}crosstrain plugin ${repo}/${entry.source}${colors.reset}`)
+    log("")
+  }
+
+  log(colors.dim + "─".repeat(60) + colors.reset)
+  info("To convert a plugin, run:")
+  log(`  crosstrain plugin ${repo}/<plugin-path>`)
+}
+
+// ========================================
+// Plugin Command Handler
+// ========================================
+
+async function handlePlugin(source: string | undefined, opts: CLIOptions): Promise<void> {
+  if (!source) {
+    error("Please provide a plugin source")
+    log("Usage: crosstrain plugin <source>")
+    log("")
+    log("Examples:")
+    log("  crosstrain plugin .claude/plugins/my-plugin     # Local path")
+    log("  crosstrain plugin org/repo/plugin-name          # GitHub")
+    log("  crosstrain plugin org/repo/plugin-name@v1.0.0   # With version")
+    process.exit(1)
+  }
+
+  let pluginPath: string
+  let cleanupPath: string | undefined
+
+  // Check if this is a remote source
+  if (isRemoteSource(source)) {
+    heading("Fetching Remote Plugin")
+
+    const { repo, subpath, ref } = parseRemoteSource(source)
+
+    if (!subpath) {
+      error("Please specify a plugin path within the repository")
+      log(`Example: crosstrain plugin ${repo}/<plugin-name>`)
+      log("")
+      log("To see available plugins, run:")
+      log(`  crosstrain list ${repo}`)
+      process.exit(1)
+    }
+
+    info(`Repository: ${repo}${ref ? ` (ref: ${ref})` : ""}`)
+    info(`Plugin path: ${subpath}`)
+
+    try {
+      const repoPath = await cloneRepo(repo, ref, opts.verbose)
+      pluginPath = join(repoPath, subpath)
+
+      if (!existsSync(pluginPath)) {
+        error(`Plugin not found at path: ${subpath}`)
+        log("")
+        log("To see available plugins, run:")
+        log(`  crosstrain list ${repo}`)
+        process.exit(1)
+      }
+    } catch (err) {
+      error(`Failed to fetch plugin: ${err instanceof Error ? err.message : String(err)}`)
+      process.exit(1)
+    }
+  } else {
+    // Local path
+    pluginPath = resolve(source)
+
+    if (!existsSync(pluginPath)) {
+      error(`Plugin directory not found at: ${source}`)
+      process.exit(1)
+    }
   }
 
   // Try to get plugin name from plugin.json or directory name
@@ -1154,6 +1494,11 @@ async function main(): Promise<void> {
 
     case "plugin":
       await handlePlugin(path, opts)
+      break
+
+    case "list":
+    case "ls":
+      await handleList(path, opts)
       break
 
     case "all":
