@@ -1,15 +1,20 @@
 {
   "name": "@fwdslsh/crosstrain",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "OpenCode plugin that loads Claude Code extension points (skills, agents, commands, hooks) into OpenCode",
   "type": "module",
   "main": "index.ts",
+  "bin": {
+    "crosstrain": "./src/cli.ts"
+  },
   "exports": {
     ".": "./index.ts",
-    "./src": "./src/index.ts"
+    "./src": "./src/index.ts",
+    "./cli": "./src/cli.ts"
   },
   "scripts": {
     "build": "bun build ./src/index.ts --outdir ./dist --target bun",
+    "build:cli": "bun build ./src/cli.ts --outdir ./dist --target bun --outfile crosstrain",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "test:watch": "bun test --watch",
@@ -20,7 +25,9 @@
     "test:commands": "bun test --test-name-pattern commands",
     "test:hooks": "bun test --test-name-pattern hooks",
     "test:plugin": "bun test --test-name-pattern plugin",
-    "test:all": "bun run scripts/test.ts"
+    "test:cli": "bun test --test-name-pattern cli",
+    "test:all": "bun run scripts/test.ts",
+    "cli": "bun run ./src/cli.ts"
   },
   "peerDependencies": {
     "@opencode-ai/plugin": "*"
@@ -39,7 +46,9 @@
     "crosstrain",
     "ai-coding",
     "skills",
-    "agents"
+    "agents",
+    "cli",
+    "converter"
   ],
   "author": "fwdslsh",
   "license": "CC-BY-4.0",
