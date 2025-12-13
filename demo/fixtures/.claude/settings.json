@@ -1,0 +1,35 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '[HOOK] File modification detected: '\"$TOOL_INPUT_PATH\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '[HOOK] Shell command: '\"$TOOL_INPUT_COMMAND\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '[HOOK] Tool completed: '\"$TOOL_NAME\""
+          }
+        ]
+      }
+    ]
+  }
+}

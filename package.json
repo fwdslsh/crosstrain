@@ -1,11 +1,12 @@
 {
-  "name": "@crosstrain/claude-loader",
-  "version": "1.0.0",
+  "name": "@fwdslsh/crosstrain",
+  "version": "0.0.1",
   "description": "OpenCode plugin that loads Claude Code extension points (skills, agents, commands, hooks) into OpenCode",
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
     "build": "bun build ./src/index.ts --outdir ./dist --target bun",
+    "typecheck": "tsc --noEmit",
     "test": "bun test",
     "test:watch": "bun test --watch",
     "test:coverage": "bun run scripts/test-coverage.ts",
@@ -20,13 +21,30 @@
   "peerDependencies": {
     "@opencode-ai/plugin": "*"
   },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "bun-types": "latest",
+    "typescript": "^5.0.0"
+  },
   "keywords": [
     "opencode",
+    "opencode-plugin",
     "claude-code",
     "plugin",
     "bridge",
-    "crosstrain"
+    "crosstrain",
+    "ai-coding",
+    "skills",
+    "agents"
   ],
-  "author": "crosstrain",
-  "license": "MIT"
+  "author": "fwdslsh",
+  "license": "CC-BY-4.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fwdslsh/crosstrain.git"
+  },
+  "bugs": {
+    "url": "https://github.com/fwdslsh/crosstrain/issues"
+  },
+  "homepage": "https://github.com/fwdslsh/crosstrain#readme"
 }

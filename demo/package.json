@@ -1,31 +1,16 @@
 {
   "name": "@crosstrain/demos",
   "version": "1.0.0",
-  "description": "Demo examples for the crosstrain plugin showing Claude Code to OpenCode conversion",
+  "description": "Demo examples showing how crosstrain loads and converts Claude Code assets",
   "private": true,
   "type": "module",
   "scripts": {
-    "demo:skills:01": "tsx skills/01-basic-skill.ts",
-    "demo:skills:02": "tsx skills/02-skill-with-tools.ts",
-    "demo:skills:03": "tsx skills/03-supporting-files.ts",
-    "demo:agents:01": "tsx agents/01-basic-agent.ts",
-    "demo:agents:02": "tsx agents/02-agent-with-tools.ts",
-    "demo:agents:03": "tsx agents/03-agent-with-permissions.ts",
-    "demo:agents:04": "tsx agents/04-agent-with-skills.ts",
-    "demo:commands:01": "tsx commands/01-basic-command.ts",
-    "demo:commands:02": "tsx commands/02-command-with-files.ts",
-    "demo:commands:03": "tsx commands/03-command-with-shell.ts",
-    "demo:hooks:01": "tsx hooks/01-pre-tool-use.ts",
-    "demo:hooks:02": "tsx hooks/02-post-tool-use.ts",
-    "demo:hooks:03": "tsx hooks/03-session-events.ts"
-  },
-  "dependencies": {
-    "@opencode-ai/sdk": "^1.0.0"
-  },
-  "devDependencies": {
-    "@types/node": "^20.0.0",
-    "tsx": "^4.7.0",
-    "typescript": "^5.3.0"
+    "demo:skills": "bun run skills/01-basic-skill.ts",
+    "demo:agents": "bun run agents/01-basic-agent.ts",
+    "demo:commands": "bun run commands/01-basic-command.ts",
+    "demo:hooks": "bun run hooks/01-pre-tool-use.ts",
+    "demo:plugin": "bun run plugin-integration.ts",
+    "demo:all": "bun run demo:skills && bun run demo:agents && bun run demo:commands && bun run demo:hooks && bun run demo:plugin"
   },
   "keywords": [
     "crosstrain",
@@ -34,6 +19,6 @@
     "demo",
     "examples"
   ],
-  "author": "crosstrain",
+  "author": "fwdslsh",
   "license": "MIT"
 }

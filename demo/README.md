@@ -1,195 +1,159 @@
 # Crosstrain Demo Examples
 
-This directory contains working examples demonstrating how to use the crosstrain plugin with the OpenCode SDK to leverage Claude Code assets in OpenCode.
+This directory contains working examples that demonstrate how the crosstrain plugin loads and converts Claude Code assets for use with OpenCode.
+
+## Quick Start
+
+```bash
+# Run from the project root
+bun run demo/skills/01-basic-skill.ts
+bun run demo/agents/01-basic-agent.ts
+bun run demo/commands/01-basic-command.ts
+bun run demo/hooks/01-pre-tool-use.ts
+bun run demo/plugin-integration.ts
+```
 
 ## Directory Structure
 
 ```
 demo/
-├── README.md           # This file
-├── skills/             # Skills → Tools examples
-├── agents/             # Agents → Agents examples
-├── commands/           # Commands → Commands examples
-├── hooks/              # Hooks → Event Handlers examples
-├── marketplaces/       # Marketplace & Plugin Installation examples
-└── package.json        # Shared dependencies for all demos
-```
-
-## Prerequisites
-
-Before running these demos, ensure you have:
-
-1. **Node.js 18+** or **Bun** installed
-2. **OpenCode** installed and configured
-3. **Crosstrain plugin** installed in your OpenCode plugin directory
-
-## Setup
-
-Install dependencies for all demos:
-
-```bash
-cd demo
-npm install
-# or
-bun install
+├── fixtures/           # Sample Claude Code assets for demos
+│   └── .claude/
+│       ├── skills/     # Sample skills (SKILL.md files)
+│       ├── agents/     # Sample agents (markdown)
+│       ├── commands/   # Sample commands (markdown)
+│       └── settings.json  # Sample hooks configuration
+├── skills/             # Skills -> Tools demos
+├── agents/             # Agents -> Agents demos
+├── commands/           # Commands -> Commands demos
+├── hooks/              # Hooks -> Event handlers demos
+├── marketplaces/       # Marketplace integration demos
+└── plugin-integration.ts  # Full plugin demonstration
 ```
 
 ## Demo Categories
 
-### 1. Skills → Tools (`./skills/`)
+### Skills -> Tools (`demo/skills/`)
 
-Demonstrates how Claude Code Skills are converted to OpenCode custom tools that can be invoked by the LLM or programmatically via the SDK.
-
-**Examples:**
-- `01-basic-skill.ts` - Basic skill conversion and invocation
-- `02-skill-with-tools.ts` - Skill with tool restrictions
-- `03-supporting-files.ts` - Skill with supporting files
-
-### 2. Agents → Agents (`./agents/`)
-
-Shows how Claude Code Subagents are converted to OpenCode Agents with different configurations.
-
-**Examples:**
-- `01-basic-agent.ts` - Simple agent conversion
-- `02-agent-with-tools.ts` - Agent with specific tools enabled
-- `03-agent-with-permissions.ts` - Agent with permission modes
-- `04-agent-with-skills.ts` - Agent that uses skills
-
-### 3. Commands → Commands (`./commands/`)
-
-Demonstrates slash command conversion and invocation.
-
-**Examples:**
-- `01-basic-command.ts` - Simple command with arguments
-- `02-command-with-files.ts` - Command with file references
-- `03-command-with-shell.ts` - Command with shell output injection
-
-### 4. Hooks → Event Handlers (`./hooks/`)
-
-Shows how Claude Code hooks are converted to OpenCode plugin event handlers.
-
-**Examples:**
-- `01-pre-tool-use.ts` - PreToolUse hook example
-- `02-post-tool-use.ts` - PostToolUse hook example
-- `03-session-events.ts` - Session start/end hooks
-
-### 5. Marketplaces & Plugin Installation (`./marketplaces/`)
-
-Demonstrates how to configure and use Claude Code marketplaces to install plugins with crosstrain. Includes an example marketplace with a sample plugin.
-
-**Contents:**
-- `README.md` - Complete guide to marketplace usage
-- `demo-marketplace/` - Example marketplace with plugin
-- Configuration examples for different installation directories
-
-## Running the Demos
-
-Each demo is a standalone TypeScript file that can be executed with Node.js or Bun:
+Shows how Claude Code Skills are converted to OpenCode custom tools.
 
 ```bash
-# Using Node.js with tsx
-npm run demo:skills:01
-
-# Using Bun (recommended)
 bun run demo/skills/01-basic-skill.ts
 ```
 
-Or run them directly:
+**What it demonstrates:**
+- `discoverSkills()` - Finds all SKILL.md files in `.claude/skills/`
+- `createToolsFromSkills()` - Converts skills to OpenCode tool definitions
+- Tool execution returns skill instructions to guide the LLM
+
+### Agents -> Agents (`demo/agents/`)
+
+Shows how Claude Code Subagents are synced to OpenCode agents.
 
 ```bash
-npx tsx demo/skills/01-basic-skill.ts
+bun run demo/agents/01-basic-agent.ts
 ```
 
-## Demo Structure
+**What it demonstrates:**
+- `discoverAgents()` - Finds all agent markdown files
+- `syncAgentsToOpenCode()` - Writes converted agents to `.opencode/agent/`
+- Frontmatter mapping (model aliases, tools, permissions)
 
-Each demo follows this pattern:
+### Commands -> Commands (`demo/commands/`)
 
-1. **Setup** - Import required modules and create test fixtures
-2. **Asset Creation** - Create Claude Code assets in `.claude/` directory
-3. **Plugin Initialization** - Initialize the crosstrain plugin
-4. **Demonstration** - Show the converted assets in action
-5. **Verification** - Verify the conversion worked correctly
-6. **Cleanup** - Clean up temporary files
+Shows how Claude Code slash commands are synced to OpenCode commands.
 
-## Learning Path
-
-We recommend following the demos in this order:
-
-1. Start with **Skills** (`./skills/01-basic-skill.ts`)
-   - Understand how Skills become Tools
-   - Learn the basic conversion flow
-
-2. Move to **Commands** (`./commands/01-basic-command.ts`)
-   - See how slash commands work
-   - Understand template variables
-
-3. Explore **Agents** (`./agents/01-basic-agent.ts`)
-   - Learn about agent configuration
-   - Understand frontmatter mapping
-
-4. Try **Marketplaces** (`./marketplaces/`)
-   - Set up a marketplace
-   - Install plugins from marketplaces
-   - Manage plugin installations
-
-4. Finish with **Hooks** (`./hooks/01-pre-tool-use.ts`)
-   - See event handlers in action
-   - Understand lifecycle hooks
-
-## SDK Usage Patterns
-
-All demos use the OpenCode SDK (`@opencode-ai/sdk`) to interact with OpenCode programmatically. Key patterns demonstrated:
-
-### Creating a Client
-
-```typescript
-import { OpenCode } from "@opencode-ai/sdk"
-
-const client = await OpenCode.create({
-  apiKey: process.env.OPENCODE_API_KEY,
-  directory: "/path/to/project"
-})
+```bash
+bun run demo/commands/01-basic-command.ts
 ```
 
-### Invoking Tools
+**What it demonstrates:**
+- `discoverCommands()` - Finds all command markdown files
+- `syncCommandsToOpenCode()` - Writes converted commands to `.opencode/command/`
+- Template syntax is 100% compatible (`$ARGUMENTS`, `$1`, `@file`, `` !`cmd` ``)
 
-```typescript
-const result = await client.tool.execute({
-  name: "skill_code_helper",
-  args: { query: "Help me refactor this code" }
-})
+### Hooks -> Event Handlers (`demo/hooks/`)
+
+Shows how Claude Code hooks become OpenCode plugin event handlers.
+
+```bash
+bun run demo/hooks/01-pre-tool-use.ts
 ```
 
-### Invoking Agents
+**What it demonstrates:**
+- `loadClaudeHooksConfig()` - Reads hooks from settings.json
+- `buildHookHandlers()` - Creates OpenCode event handlers
+- Hook event mapping (PreToolUse -> tool.execute.before, etc.)
 
-```typescript
-const response = await client.agent.send({
-  agent: "claude_helper",
-  message: "Analyze this codebase"
-})
+### Full Plugin Integration (`demo/plugin-integration.ts`)
+
+Shows the complete plugin initialization process.
+
+```bash
+bun run demo/plugin-integration.ts
 ```
 
-### Executing Commands
+**What it demonstrates:**
+- Full `CrosstrainPlugin` initialization
+- All loaders working together
+- Tools, agents, commands, and hooks loaded simultaneously
 
-```typescript
-const result = await client.command.execute({
-  name: "claude_test",
-  args: ["src/"]
-})
-```
+## Key Concepts
 
-## Configuration
+### How the Plugin Works
 
-Demos use a shared configuration file at `demo/.opencode/`:
+1. **Discovery**: The plugin scans `.claude/` directories for assets
+2. **Parsing**: Each asset type is parsed (frontmatter + content)
+3. **Conversion**: Assets are mapped to OpenCode equivalents
+4. **Export**: Tools are exported directly; agents/commands are written to `.opencode/`
 
-```
-demo/.opencode/
-├── agent/      # Converted agents
-├── command/    # Converted commands
-└── plugin/     # Crosstrain plugin (symlinked)
-```
+### Asset Conversion Summary
 
-The crosstrain plugin is configured via `demo/crosstrain.config.json`:
+| Claude Code | OpenCode | Location |
+|-------------|----------|----------|
+| Skills (`skills/*/SKILL.md`) | Custom Tools | Plugin `tool` export |
+| Agents (`agents/*.md`) | Agents | `.opencode/agent/` |
+| Commands (`commands/*.md`) | Commands | `.opencode/command/` |
+| Hooks (`settings.json`) | Event Handlers | Plugin event hooks |
+
+### Naming Convention
+
+Converted assets use a prefix to avoid conflicts:
+
+- `skill_commit_helper` (from `commit-helper` skill)
+- `claude_documentation.md` (from `documentation` agent)
+- `claude_test.md` (from `test` command)
+
+## Fixtures
+
+The `demo/fixtures/.claude/` directory contains sample Claude Code assets:
+
+### Skills
+- **commit-helper**: Generates conventional commit messages
+- **code-review**: Provides thorough code review with checklists
+
+### Agents
+- **documentation**: Specialized agent for writing documentation
+- **security-reviewer**: Security-focused code reviewer
+
+### Commands
+- **test**: Run tests with coverage
+- **component**: Create React components
+- **review**: Review changes and create commits
+
+### Hooks
+- **PreToolUse**: Logs file modifications and shell commands
+- **PostToolUse**: Logs tool completion
+
+## Using in Your Project
+
+To use crosstrain in a real OpenCode project:
+
+1. Install the plugin in `.opencode/plugin/crosstrain/`
+2. Add Claude Code assets to `.claude/`
+3. Start OpenCode - assets are loaded automatically
+
+Configuration via `crosstrain.config.json`:
 
 ```json
 {
@@ -197,70 +161,48 @@ The crosstrain plugin is configured via `demo/crosstrain.config.json`:
   "claudeDir": ".claude",
   "openCodeDir": ".opencode",
   "watch": true,
-  "verbose": true
+  "verbose": false,
+  "filePrefix": "claude_"
 }
 ```
 
-## Troubleshooting
+## API Reference
 
-### Plugin Not Loading
+### Skills Loader
 
-Ensure the crosstrain plugin is installed:
+```typescript
+import { discoverSkills, createToolsFromSkills } from "crosstrain/loaders/skills"
 
-```bash
-# Check plugin directory
-ls ~/.config/opencode/plugin/crosstrain
-# or
-ls .opencode/plugin/crosstrain
+const skills = await discoverSkills(claudeDir, homeDir)
+const tools = await createToolsFromSkills(claudeDir, homeDir)
 ```
 
-### Assets Not Converting
+### Agents Loader
 
-Enable verbose logging in `crosstrain.config.json`:
+```typescript
+import { discoverAgents, syncAgentsToOpenCode } from "crosstrain/loaders/agents"
 
-```json
-{
-  "verbose": true
-}
+const agents = await discoverAgents(claudeDir, homeDir)
+await syncAgentsToOpenCode(claudeDir, homeDir, openCodeDir, options)
 ```
 
-Check OpenCode logs:
+### Commands Loader
 
-```bash
-opencode --log-level debug
+```typescript
+import { discoverCommands, syncCommandsToOpenCode } from "crosstrain/loaders/commands"
+
+const commands = await discoverCommands(claudeDir, homeDir)
+await syncCommandsToOpenCode(claudeDir, homeDir, openCodeDir, options)
 ```
 
-### SDK Connection Issues
+### Hooks Loader
 
-Verify OpenCode is running:
+```typescript
+import { loadClaudeHooksConfig, buildHookHandlers } from "crosstrain/loaders/hooks"
 
-```bash
-opencode server status
+const config = await loadClaudeHooksConfig(claudeDir, homeDir)
+const handlers = await buildHookHandlers(claudeDir, homeDir)
 ```
-
-Check your API key:
-
-```bash
-echo $OPENCODE_API_KEY
-```
-
-## Additional Resources
-
-- **Crosstrain Plugin:** `../README.md`
-- **Feature Coverage:** `../FEATURES.md`
-- **OpenCode SDK Docs:** https://opencode.ai/docs/sdk
-- **Claude Code Docs:** https://docs.claude.com/docs/en/overview
-- **OpenCode Docs:** https://opencode.ai/docs
-
-## Contributing
-
-Found an issue or want to add more examples? Please:
-
-1. Check existing examples for similar patterns
-2. Follow the established demo structure
-3. Include clear comments and documentation
-4. Test your demo thoroughly
-5. Submit a pull request
 
 ## License
 

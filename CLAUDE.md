@@ -4,162 +4,97 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**crosstrain** is an opencode.ai plugin that enables opencode to leverage Claude Code's extension points including plugins, skills, agents, commands, and hooks. This bridges two AI coding assistants by making Claude Code's extension ecosystem available to opencode users.
-
-## OpenCode Plugin Architecture
-
-Plugins are JavaScript/TypeScript modules that extend OpenCode by hooking into events and providing custom functionality.
-
-### Plugin Locations
-- Project-local: `.opencode/plugin/`
-- Global: `~/.config/opencode/plugin/`
-
-### Plugin Structure
-```typescript
-import type { Plugin } from "@opencode-ai/plugin"
-
-export const MyPlugin: Plugin = async ({ project, client, $, directory, worktree }) => {
-  return {
-    // Event handlers
-    event: async ({ event }) => { /* handle session.idle, file.edited, etc */ },
-
-    // Tool hooks
-    "tool.execute.before": async (input, output) => { /* pre-tool logic */ },
-    "tool.execute.after": async (input, output) => { /* post-tool logic */ },
-
-    // Custom tools
-    tool: {
-      mytool: tool({
-        description: "Tool description",
-        args: { param: tool.schema.string() },
-        async execute(args, ctx) { return "result" }
-      })
-    }
-  }
-}
-```
-
-### Plugin Context
-- `project`: Current project information
-- `directory`: Current working directory
-- `worktree`: Git worktree path
-- `client`: OpenCode SDK client for AI interactions
-- `$`: Bun shell API for command execution
-
-## Extension Points to Bridge
-
-### From Claude Code to OpenCode
-
-| Claude Code Concept | OpenCode Equivalent | Implementation Path |
-|---------------------|---------------------|---------------------|
-| Skills (`.claude/skills/`) | Custom Tools | Plugin `tool` exports |
-| Agents (`.claude/agents/`) | Agents (`.opencode/agent/`) | Markdown or JSON config |
-| Commands (`.claude/commands/`) | Commands (`.opencode/command/`) | Markdown or JSON config |
-| Hooks | Plugin event handlers | `tool.execute.before/after`, event handlers |
-| MCP Servers | MCP config in `opencode.json` | Direct MCP integration |
-
-### OpenCode Event Types
-- **Session**: `session.created`, `session.idle`, `session.error`, `session.status`
-- **Tool**: `tool.execute.before`, `tool.execute.after`
-- **File**: `file.edited`, `file.watcher.updated`
-- **Message**: `message.updated`, `message.removed`
-- **Permission**: `permission.updated`, `permission.replied`
-- **TUI**: `tui.prompt.append`, `tui.command.execute`
+**crosstrain** is an OpenCode plugin that bridges Claude Code's extension ecosystem to OpenCode. It converts Claude Code skills, agents, commands, and hooks into their OpenCode equivalents, enabling users of both AI assistants to share extension points.
 
 ## Development Commands
 
 ```bash
-# Install dependencies
-bun install
-
-# Run tests
-bun test
-
-# Type checking (if TypeScript)
-bun run typecheck
-
-# Build plugin
-bun run build
+bun install                    # Install dependencies
+bun test                       # Run all tests (194 tests)
+bun test:watch                 # Watch mode
+bun test --test-name-pattern skills  # Run specific test file
+bun run typecheck              # TypeScript type checking
+bun run build                  # Build to dist/
 ```
 
-## Key Configuration Files
+## Architecture
 
-### opencode.json Schema
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "agent": { /* agent definitions */ },
-  "command": { /* command definitions */ },
-  "tools": { /* tool enable/disable */ },
-  "mcp": { /* MCP server config */ },
-  "instructions": [ /* rule file paths */ ]
-}
-```
+### Plugin Entry Point (`src/index.ts`)
 
-### Custom Tool Definition
-```typescript
-import { tool } from "@opencode-ai/plugin"
+The `CrosstrainPlugin` function is the main export. It:
+1. Loads configuration from multiple sources (files, env vars)
+2. Scans `.claude/` directories (project and user-level)
+3. Converts each asset type using specialized loaders
+4. Registers tools and event handlers with OpenCode
+5. Sets up file watchers for dynamic reloading
 
-export default tool({
-  description: "What the tool does",
-  args: {
-    param: tool.schema.string().describe("Parameter description")
-  },
-  async execute(args, context) {
-    const { agent, sessionID, messageID } = context
-    return "result"
-  }
-})
-```
+### Loader Pattern (`src/loaders/`)
 
-### Agent Markdown Format (`.opencode/agent/name.md`)
-```markdown
----
-description: What the agent does
-mode: subagent  # or: primary, all
-model: anthropic/claude-sonnet-4-20250514
-temperature: 0.3
-tools:
-  write: false
-  edit: false
-  bash: false
-permission:
-  edit: ask
-  bash: ask
----
-System prompt content here.
-```
+Each loader follows a consistent pattern with three phases:
+- `discover*()` - Scan directories for Claude Code assets
+- `convert*()` - Transform to OpenCode format
+- `sync*ToOpenCode()` - Write to `.opencode/` directory
 
-### Command Markdown Format (`.opencode/command/name.md`)
-```markdown
----
-description: Command description
-agent: build
-model: anthropic/claude-3-5-sonnet-20241022
-subtask: true  # optional: run as subagent
----
-Prompt template with $ARGUMENTS or $1, $2, etc.
-Include @filepath for file references.
-Use !`command` for shell output injection.
+| Loader | Source | Destination |
+|--------|--------|-------------|
+| `skills.ts` | `.claude/skills/*/SKILL.md` | Plugin `tool` exports |
+| `agents.ts` | `.claude/agents/*.md` | `.opencode/agent/claude_*.md` |
+| `commands.ts` | `.claude/commands/*.md` | `.opencode/command/claude_*.md` |
+| `hooks.ts` | `.claude/settings.json` | Event handlers (`tool.execute.before/after`) |
+| `marketplace.ts` | Marketplace sources | Plugin discovery |
+| `plugin-installer.ts` | Marketplace plugins | `.claude/plugins/` |
+
+### Type System (`src/types.ts`)
+
+Defines interfaces for both Claude Code and OpenCode formats:
+- `Claude*` types: Input formats from Claude Code assets
+- `OpenCode*` types: Output formats for OpenCode
+- `*_MAPPING` constants: Translation tables (models, tools, permissions, hooks)
+
+### Configuration (`src/utils/config.ts`)
+
+Config sources (merged in order):
+1. `crosstrain.config.json` or `.crosstrainrc.json`
+2. `opencode.json` under `plugins.crosstrain`
+3. Environment variables `CROSSTRAIN_*`
+
+Key config options: `enabled`, `claudeDir`, `openCodeDir`, `watch`, `filePrefix`, `loaders`, `marketplaces`, `plugins`
+
+### Plugin Tools
+
+The plugin exposes management tools to OpenCode:
+- `crosstrain_list_marketplaces` - List configured marketplaces
+- `crosstrain_list_installed` - Show plugin installation status
+- `crosstrain_install_plugin` / `crosstrain_uninstall_plugin` - Manage plugins
+- `crosstrain_clear_cache` - Clear Git marketplace cache
+
+## Key Mappings
+
+### Model Mapping (Claude alias → OpenCode path)
+- `sonnet` → `anthropic/claude-sonnet-4-20250514`
+- `opus` → `anthropic/claude-opus-4-20250514`
+- `haiku` → `anthropic/claude-haiku-4-20250514`
+
+### Hook Event Mapping
+- `PreToolUse` → `tool.execute.before`
+- `PostToolUse` → `tool.execute.after`
+- `SessionStart` → `session.created`
+- `SessionEnd` / `Stop` → `session.idle`
+
+### Permission Mode Mapping
+- `acceptEdits` → `{ edit: "allow" }`
+- `bypassPermissions` → `{ edit: "allow", bash: "allow" }`
+- `plan` → `{ edit: "deny", bash: "deny" }`
+
+## Testing
+
+Tests are in `src/tests/` with fixtures. Each loader has its own test file. Use `--test-name-pattern` to filter:
+
+```bash
+bun test --test-name-pattern "skills"
+bun test --test-name-pattern "marketplace"
 ```
 
 ## Reference Documentation
 
-All opencode documentation is available in `.claude/reference/opencode/`:
-- `plugins.md` - Plugin system and event hooks
-- `custom-tools.md` - Custom tool creation
-- `agents.md` - Agent configuration
-- `commands.md` - Custom commands
-- `rules.md` - AGENTS.md instruction files
-- `mcp-servers.md` - MCP server integration
-- `sdk.md` - JavaScript/TypeScript SDK
-- `config.md` - Configuration options
-
-## Implementation Notes
-
-- Use `@opencode-ai/plugin` package for type-safe plugin development
-- Use `@opencode-ai/sdk` for programmatic opencode interaction
-- Custom tools use Zod schemas via `tool.schema` for argument validation
-- Plugin hooks can block tool execution by throwing errors
-- Agent permissions support glob patterns for bash commands
-- Commands support `$ARGUMENTS`, positional params (`$1`, `$2`), file refs (`@path`), and shell injection (`` !`cmd` ``)
+OpenCode docs are in `.claude/reference/opencode/` covering plugins, tools, agents, commands, and MCP integration.
