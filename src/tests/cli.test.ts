@@ -52,6 +52,7 @@ describe("Crosstrain CLI", () => {
       expect(result.stdout).toContain("skill")
       expect(result.stdout).toContain("agent")
       expect(result.stdout).toContain("mcp")
+      expect(result.stdout).toContain("plugin")
       expect(result.stdout).toContain("all")
     })
 
@@ -534,6 +535,162 @@ describe("Crosstrain CLI", () => {
 
       expect(result.exitCode).toBe(0)
       expect(existsSync(join(customOutput, "agent", "claude_output-agent.md"))).toBe(true)
+    })
+  })
+
+  describe("Plugin Conversion", () => {
+    let testDir: TestDirectory
+
+    beforeEach(async () => {
+      testDir = await createTestDirectory("cli-plugin")
+    })
+
+    afterEach(async () => {
+      await testDir.cleanup()
+    })
+
+    it("should convert a plugin directory with all asset types", async () => {
+      // Create a mock plugin directory
+      const pluginDir = join(testDir.root, "my-plugin")
+      await mkdir(join(pluginDir, "commands"), { recursive: true })
+      await mkdir(join(pluginDir, "agents"), { recursive: true })
+      await mkdir(join(pluginDir, "skills", "test-skill"), { recursive: true })
+
+      // Create command
+      await writeFile(
+        join(pluginDir, "commands", "plugin-cmd.md"),
+        "---\ndescription: Plugin command\n---\n\nRun: $1"
+      )
+
+      // Create agent
+      await writeFile(
+        join(pluginDir, "agents", "plugin-agent.md"),
+        "---\ndescription: Plugin agent\n---\n\nYou are a plugin agent."
+      )
+
+      // Create skill
+      await writeFile(
+        join(pluginDir, "skills", "test-skill", "SKILL.md"),
+        "---\nname: test-skill\ndescription: Test skill\n---\n\nDo something."
+      )
+
+      // Create MCP config
+      await writeFile(
+        join(pluginDir, ".mcp.json"),
+        JSON.stringify({
+          mcpServers: {
+            "plugin-server": { command: "node", args: ["server.js"] },
+          },
+        })
+      )
+
+      const result = await runCLI([
+        "plugin", pluginDir,
+        "-o", testDir.openCodeDir,
+      ], testDir.root)
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("Converting Plugin: my-plugin")
+      expect(result.stdout).toContain("Commands")
+      expect(result.stdout).toContain("Agents")
+      expect(result.stdout).toContain("Skills")
+      expect(result.stdout).toContain("MCP Servers")
+
+      // Check outputs
+      expect(existsSync(join(testDir.openCodeDir, "command", "claude_my_plugin_plugin-cmd.md"))).toBe(true)
+      expect(existsSync(join(testDir.openCodeDir, "agent", "claude_my_plugin_plugin-agent.md"))).toBe(true)
+      expect(existsSync(join(testDir.openCodeDir, "plugin", "crosstrain-my-plugin", "index.ts"))).toBe(true)
+    })
+
+    it("should use plugin name from plugin.json if available", async () => {
+      const pluginDir = join(testDir.root, "unnamed-plugin")
+      await mkdir(join(pluginDir, ".claude-plugin"), { recursive: true })
+      await mkdir(join(pluginDir, "commands"), { recursive: true })
+
+      // Create plugin.json with custom name
+      await writeFile(
+        join(pluginDir, ".claude-plugin", "plugin.json"),
+        JSON.stringify({ name: "custom-name", description: "A custom plugin" })
+      )
+
+      // Create a command
+      await writeFile(
+        join(pluginDir, "commands", "cmd.md"),
+        "---\ndescription: Test\n---\n\nTest"
+      )
+
+      const result = await runCLI([
+        "plugin", pluginDir,
+        "-o", testDir.openCodeDir,
+        "--dry-run",
+      ], testDir.root)
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("Converting Plugin: custom-name")
+    })
+
+    it("should handle plugin with only skills", async () => {
+      const pluginDir = join(testDir.root, "skills-only")
+      await mkdir(join(pluginDir, "skills", "my-skill"), { recursive: true })
+
+      await writeFile(
+        join(pluginDir, "skills", "my-skill", "SKILL.md"),
+        "---\nname: my-skill\ndescription: A skill\n---\n\nInstructions here."
+      )
+
+      const result = await runCLI([
+        "plugin", pluginDir,
+        "-o", testDir.openCodeDir,
+      ], testDir.root)
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("No commands/ directory found")
+      expect(result.stdout).toContain("No agents/ directory found")
+      expect(result.stdout).toContain("skill(s)")
+
+      // Check plugin was created
+      const skillPluginDir = join(testDir.openCodeDir, "plugin", "crosstrain-skills-only")
+      expect(existsSync(join(skillPluginDir, "index.ts"))).toBe(true)
+      expect(existsSync(join(skillPluginDir, "tools", "skill_skills_only_my_skill.ts"))).toBe(true)
+    })
+
+    it("should error when plugin path not provided", async () => {
+      const result = await runCLI(["plugin"], testDir.root)
+
+      expect(result.exitCode).toBe(1)
+      expect(result.stdout).toContain("Please provide a path")
+    })
+
+    it("should error when plugin directory not found", async () => {
+      const result = await runCLI([
+        "plugin", "/nonexistent/plugin",
+      ], testDir.root)
+
+      expect(result.exitCode).toBe(1)
+      expect(result.stdout).toContain("not found")
+    })
+
+    it("should show dry-run output without writing", async () => {
+      const pluginDir = join(testDir.root, "dry-plugin")
+      await mkdir(join(pluginDir, "commands"), { recursive: true })
+
+      await writeFile(
+        join(pluginDir, "commands", "dry-cmd.md"),
+        "---\ndescription: Dry test\n---\n\nTest"
+      )
+
+      const result = await runCLI([
+        "plugin", pluginDir,
+        "-o", testDir.openCodeDir,
+        "--dry-run",
+      ], testDir.root)
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("dry-run")
+      expect(result.stdout).toContain("Would convert")
+
+      // Files should NOT exist
+      expect(existsSync(join(testDir.openCodeDir, "command"))).toBe(false)
     })
   })
 

@@ -11,6 +11,7 @@
  *   agent <path>      Convert a Claude Code agent to OpenCode
  *   hook              Convert Claude Code hooks to OpenCode event handlers
  *   mcp [path]        Convert Claude Code MCP servers to OpenCode format
+ *   plugin <path>     Convert a Claude Code plugin directory to OpenCode assets
  *   all               Convert all Claude Code assets
  *   init              Initialize a new OpenCode plugin for skills
  *
@@ -144,6 +145,7 @@ ${colors.bold}COMMANDS:${colors.reset}
   ${colors.cyan}agent${colors.reset} <path>      Convert a Claude Code agent (.md file)
   ${colors.cyan}hook${colors.reset}              Display Claude Code hooks configuration
   ${colors.cyan}mcp${colors.reset} [path]        Convert Claude Code MCP servers (.mcp.json)
+  ${colors.cyan}plugin${colors.reset} <path>     Convert a Claude Code plugin directory to OpenCode
   ${colors.cyan}all${colors.reset}               Convert all Claude Code assets in current project
   ${colors.cyan}sync${colors.reset}              Alias for 'all'
   ${colors.cyan}init${colors.reset}              Initialize a new OpenCode plugin for skills
@@ -163,6 +165,9 @@ ${colors.bold}EXAMPLES:${colors.reset}
 
   # Convert a skill directory
   crosstrain skill .claude/skills/pdf-extractor
+
+  # Convert a Claude Code plugin
+  crosstrain plugin .claude/plugins/my-plugin
 
   # Convert all assets with dry-run
   crosstrain all --dry-run
@@ -656,6 +661,251 @@ async function handleMCP(path: string | undefined, opts: CLIOptions): Promise<vo
   }
 }
 
+async function handlePlugin(path: string | undefined, opts: CLIOptions): Promise<void> {
+  if (!path) {
+    error("Please provide a path to a plugin directory")
+    log("Usage: crosstrain plugin <path>")
+    process.exit(1)
+  }
+
+  const pluginPath = resolve(path)
+
+  if (!existsSync(pluginPath)) {
+    error(`Plugin directory not found at: ${path}`)
+    process.exit(1)
+  }
+
+  // Try to get plugin name from plugin.json or directory name
+  let pluginName = basename(pluginPath)
+  const pluginJsonPath = join(pluginPath, ".claude-plugin", "plugin.json")
+  if (existsSync(pluginJsonPath)) {
+    try {
+      const pluginJson = JSON.parse(await readTextFile(pluginJsonPath))
+      if (pluginJson.name) {
+        pluginName = pluginJson.name
+      }
+    } catch {
+      // Fall back to directory name
+    }
+  }
+
+  heading(`Converting Plugin: ${pluginName}`)
+  info(`Source: ${pluginPath}`)
+
+  // Use plugin name as prefix for generated files
+  const pluginPrefix = `${opts.prefix}${pluginName.replace(/[^a-zA-Z0-9]/g, "_")}_`
+
+  let totalConverted = 0
+
+  // Commands - check for commands/ directory in plugin
+  log(`\n${colors.bold}Commands${colors.reset}`)
+  const commandsDir = join(pluginPath, "commands")
+  if (existsSync(commandsDir)) {
+    // Discover commands directly from the plugin's commands directory
+    const commands = await discoverCommands(pluginPath, "")
+    if (commands.length === 0) {
+      log("  No commands found")
+    } else {
+      if (opts.dryRun) {
+        for (const cmd of commands) {
+          info(`Would convert: ${cmd.name} → ${pluginPrefix}${cmd.name}.md`)
+        }
+      } else {
+        await writeOpenCodeCommands(commands, opts.outputDir, {
+          filePrefix: pluginPrefix,
+          verbose: opts.verbose,
+        })
+        success(`Converted ${commands.length} command(s)`)
+      }
+      totalConverted += commands.length
+    }
+  } else {
+    log("  No commands/ directory found")
+  }
+
+  // Agents - check for agents/ directory in plugin
+  log(`\n${colors.bold}Agents${colors.reset}`)
+  const agentsDir = join(pluginPath, "agents")
+  if (existsSync(agentsDir)) {
+    const agents = await discoverAgents(pluginPath, "")
+    if (agents.length === 0) {
+      log("  No agents found")
+    } else {
+      if (opts.dryRun) {
+        for (const agent of agents) {
+          info(`Would convert: ${agent.name} → ${pluginPrefix}${agent.name}.md`)
+        }
+      } else {
+        await writeOpenCodeAgents(agents, opts.outputDir, {
+          filePrefix: pluginPrefix,
+          verbose: opts.verbose,
+        })
+        success(`Converted ${agents.length} agent(s)`)
+      }
+      totalConverted += agents.length
+    }
+  } else {
+    log("  No agents/ directory found")
+  }
+
+  // Skills - check for skills/ directory in plugin
+  log(`\n${colors.bold}Skills${colors.reset}`)
+  const skillsDir = join(pluginPath, "skills")
+  if (existsSync(skillsDir)) {
+    const skills = await discoverSkills(pluginPath, "")
+    if (skills.length === 0) {
+      log("  No skills found")
+    } else {
+      if (opts.dryRun) {
+        for (const skill of skills) {
+          const toolName = `skill_${pluginName.toLowerCase().replace(/-/g, "_")}_${skill.name.toLowerCase().replace(/-/g, "_")}`
+          info(`Would convert: ${skill.name} → tools/${toolName}.ts`)
+        }
+      } else {
+        // Generate tool files for each skill with plugin-namespaced names
+        const skillPluginDir = join(opts.outputDir, "plugin", `crosstrain-${pluginName}`)
+        const toolsDir = join(skillPluginDir, "tools")
+        await mkdir(toolsDir, { recursive: true })
+
+        const pluginSkills: ClaudeSkill[] = []
+        for (const skill of skills) {
+          // Namespace the skill name with plugin name
+          const namespacedSkill: ClaudeSkill = {
+            ...skill,
+            name: `${pluginName}_${skill.name}`,
+          }
+          pluginSkills.push(namespacedSkill)
+
+          const toolName = `skill_${namespacedSkill.name.toLowerCase().replace(/-/g, "_")}`
+          const toolContent = generateSkillPluginTool(namespacedSkill)
+          await writeFile(join(toolsDir, `${toolName}.ts`), toolContent)
+          if (opts.verbose) {
+            log(`  Wrote: tools/${toolName}.ts`)
+          }
+        }
+
+        // Generate the plugin entry point
+        const pluginContent = generateSkillsPlugin(pluginSkills)
+        await writeFile(join(skillPluginDir, "index.ts"), pluginContent)
+
+        // Generate package.json for the plugin
+        const packageJson = {
+          name: `crosstrain-${pluginName}`,
+          version: "0.0.1",
+          description: `Claude Code plugin '${pluginName}' skills converted to OpenCode tools`,
+          main: "index.ts",
+          type: "module",
+          peerDependencies: {
+            "@opencode-ai/plugin": "*",
+          },
+        }
+        await writeFile(join(skillPluginDir, "package.json"), JSON.stringify(packageJson, null, 2) + "\n")
+
+        success(`Converted ${skills.length} skill(s) to plugin at ${skillPluginDir}`)
+      }
+      totalConverted += skills.length
+    }
+  } else {
+    log("  No skills/ directory found")
+  }
+
+  // MCP Servers - check for .mcp.json in plugin root
+  log(`\n${colors.bold}MCP Servers${colors.reset}`)
+  const mcpPath = join(pluginPath, ".mcp.json")
+  if (existsSync(mcpPath)) {
+    try {
+      const content = await readTextFile(mcpPath)
+      const config = JSON.parse(content)
+
+      if (config.mcpServers && Object.keys(config.mcpServers).length > 0) {
+        const servers = Object.entries(config.mcpServers).map(([name, server]) => ({
+          name,
+          server: server as any,
+          source: "plugin" as const,
+          sourcePath: mcpPath,
+        }))
+
+        if (opts.dryRun) {
+          for (const server of servers) {
+            info(`Would convert: ${server.name} → ${pluginPrefix}${server.name}`)
+          }
+        } else {
+          const converted = convertMCPServers(servers, { filePrefix: pluginPrefix, verbose: opts.verbose })
+
+          // Merge into opencode.json
+          const configPath = join(dirname(opts.outputDir), "opencode.json")
+          let existingConfig: Record<string, any> = {}
+
+          if (existsSync(configPath)) {
+            const existing = await readTextFile(configPath)
+            existingConfig = JSON.parse(existing)
+          }
+
+          existingConfig.mcp = { ...existingConfig.mcp, ...converted }
+          if (!existingConfig.$schema) {
+            existingConfig.$schema = "https://opencode.ai/config.json"
+          }
+
+          await writeFile(configPath, JSON.stringify(existingConfig, null, 2) + "\n")
+          success(`Synced ${Object.keys(converted).length} MCP server(s)`)
+        }
+        totalConverted += servers.length
+      } else {
+        log("  No MCP servers configured")
+      }
+    } catch (err) {
+      warn(`Failed to parse .mcp.json: ${err}`)
+    }
+  } else {
+    log("  No .mcp.json found")
+  }
+
+  // Hooks - check for settings.json in plugin root
+  log(`\n${colors.bold}Hooks${colors.reset}`)
+  const settingsPath = join(pluginPath, "settings.json")
+  if (existsSync(settingsPath)) {
+    try {
+      const content = await readTextFile(settingsPath)
+      const settings = JSON.parse(content)
+
+      if (settings.hooks) {
+        const hookCount =
+          (settings.hooks.PreToolUse?.length || 0) +
+          (settings.hooks.PostToolUse?.length || 0) +
+          (settings.hooks.SessionStart?.length || 0) +
+          (settings.hooks.SessionEnd?.length || 0) +
+          (settings.hooks.Stop?.length || 0) +
+          (settings.hooks.Notification?.length || 0)
+
+        if (hookCount > 0) {
+          info(`Found ${hookCount} hook matcher(s) - converted at runtime by plugin`)
+        } else {
+          log("  No hooks configured")
+        }
+      } else {
+        log("  No hooks in settings.json")
+      }
+    } catch {
+      log("  No valid settings.json found")
+    }
+  } else {
+    log("  No settings.json found")
+  }
+
+  // Summary
+  heading("Summary")
+  if (opts.dryRun) {
+    info(`Would convert ${totalConverted} asset(s) from plugin '${pluginName}'`)
+  } else {
+    success(`Converted ${totalConverted} asset(s) from plugin '${pluginName}'`)
+    if (existsSync(join(pluginPath, "skills"))) {
+      log("")
+      info("To use skills in OpenCode, add to opencode.json:")
+      log(`  "plugins": ["${join(opts.outputDir, "plugin", `crosstrain-${pluginName}`)}"]`)
+    }
+  }
+}
+
 async function handleAll(opts: CLIOptions): Promise<void> {
   heading("Converting All Claude Code Assets")
 
@@ -900,6 +1150,10 @@ async function main(): Promise<void> {
 
     case "mcp":
       await handleMCP(path, opts)
+      break
+
+    case "plugin":
+      await handlePlugin(path, opts)
       break
 
     case "all":
