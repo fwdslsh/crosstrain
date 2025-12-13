@@ -201,7 +201,8 @@ export async function installConfiguredPlugins(
         pluginConfig.name,
         pluginConfig.marketplace,
         marketplaces,
-        projectRoot
+        projectRoot,
+        verbose
       )
 
       if (!plugin) {

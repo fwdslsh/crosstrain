@@ -287,9 +287,9 @@ Becomes an OpenCode `tool.execute.before` handler that executes the command when
 
 ---
 
-### 5. Marketplaces & Plugin Installation (90% Coverage)
+### 5. Marketplaces & Plugin Installation (100% Coverage)
 
-**Status:** ✅ Implemented with local marketplace support
+**Status:** ✅ Fully Implemented
 
 **Claude Code Documentation:** https://docs.claude.com/docs/en/plugins, https://docs.claude.com/docs/en/plugin-marketplaces
 
@@ -298,8 +298,9 @@ Becomes an OpenCode `tool.execute.before` handler that executes the command when
 **Implementation:** `src/loaders/marketplace.ts`, `src/loaders/plugin-installer.ts`
 
 **How It Works:**
-- Configure marketplaces in crosstrain configuration
+- Configure marketplaces in crosstrain configuration (local paths or Git repositories)
 - Specify plugins to auto-install on startup
+- Git repositories are cloned and cached automatically
 - Choose installation directory (project, user, or custom)
 - Manage installations via provided tools
 
@@ -309,12 +310,16 @@ Becomes an OpenCode `tool.execute.before` handler that executes the command when
 |-------------|--------------------------|
 | Marketplace manifest (`.claude-plugin/marketplace.json`) | ✅ Fully parsed |
 | Plugin manifest (`.claude-plugin/plugin.json`) | ✅ Fully parsed |
-| Local marketplace sources | ✅ Supported |
-| Git/GitHub marketplace sources | ⚠️ Recognized but not yet implemented |
+| Local marketplace sources | ✅ Fully supported |
+| Git HTTPS URLs | ✅ Fully supported with caching |
+| Git SSH URLs | ✅ Fully supported with caching |
+| GitHub shorthand (org/repo) | ✅ Fully supported with caching |
+| Branch/tag/commit refs | ✅ Supported via `ref` parameter |
 | Plugin installation via `/plugin install` | ✅ Via `crosstrain_install_plugin` tool |
 | Plugin uninstallation | ✅ Via `crosstrain_uninstall_plugin` tool |
 | List marketplaces | ✅ Via `crosstrain_list_marketplaces` tool |
 | List installed plugins | ✅ Via `crosstrain_list_installed` tool |
+| Clear Git cache | ✅ Via `crosstrain_clear_cache` tool |
 
 **Configuration Example:**
 
@@ -329,7 +334,14 @@ Becomes an OpenCode `tool.execute.before` handler that executes the command when
     },
     {
       "name": "company-plugins",
+      "source": "https://github.com/your-org/claude-plugins",
+      "ref": "main",
+      "enabled": true
+    },
+    {
+      "name": "github-shorthand",
       "source": "your-org/claude-plugins",
+      "ref": "v1.0.0",
       "enabled": true
     }
   ],
@@ -354,17 +366,23 @@ Becomes an OpenCode `tool.execute.before` handler that executes the command when
 2. `crosstrain_list_installed` - Show installation status of configured plugins
 3. `crosstrain_install_plugin` - Install a plugin from a marketplace (with arguments: pluginName, marketplace, installDir, force)
 4. `crosstrain_uninstall_plugin` - Uninstall a plugin (with arguments: pluginName, installDir)
+5. `crosstrain_clear_cache` - Clear Git marketplace cache to force re-clone
 
 **Automatic Installation:**
 When OpenCode starts with crosstrain configured, it will:
-1. Load configured marketplaces
+1. Load configured marketplaces (cloning Git repos to cache if needed)
 2. Discover available plugins
 3. Install configured plugins to specified directories
 4. Load plugin assets (skills, agents, commands, hooks)
 
+**Git Marketplace Caching:**
+- Git repositories are cloned to `/tmp/crosstrain-marketplaces/`
+- Repositories are automatically updated on subsequent loads
+- Use `crosstrain_clear_cache` to force re-clone
+- Supports HTTPS, SSH, and GitHub shorthand URLs
+- Supports branch, tag, or commit refs
+
 **Limitations:**
-- Git-based marketplace sources (GitHub URLs, Git repos) are planned but not yet implemented
-- Only local marketplace paths currently work
 - MCP server bundling in plugins is not processed (configure MCP separately)
 
 **Demo:**

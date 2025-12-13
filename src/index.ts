@@ -40,7 +40,12 @@ import { createToolsFromSkills } from "./loaders/skills"
 import { syncAgentsToOpenCode, discoverAgents } from "./loaders/agents"
 import { syncCommandsToOpenCode, discoverCommands } from "./loaders/commands"
 import { buildHookHandlers } from "./loaders/hooks"
-import { listAvailablePlugins, findPlugin } from "./loaders/marketplace"
+import {
+  listAvailablePlugins,
+  findPlugin,
+  clearGitMarketplaceCache,
+  getGitCacheDirectory,
+} from "./loaders/marketplace"
 import {
   installConfiguredPlugins,
   installPlugin,
@@ -321,7 +326,7 @@ export const CrosstrainPlugin: Plugin = async (ctx: PluginContext) => {
           return "No marketplaces configured. Add marketplaces in your crosstrain configuration."
         }
 
-        const pluginsByMarketplace = await listAvailablePlugins(marketplaces, directory)
+        const pluginsByMarketplace = await listAvailablePlugins(marketplaces, directory, config.verbose)
         
         let output = "# Configured Claude Code Marketplaces\n\n"
         
@@ -400,7 +405,7 @@ export const CrosstrainPlugin: Plugin = async (ctx: PluginContext) => {
         const { pluginName, marketplace: marketplaceName, installDir: customInstallDir, force = false } = args
 
         // Find the plugin
-        const plugin = await findPlugin(pluginName, marketplaceName, config.marketplaces, directory)
+        const plugin = await findPlugin(pluginName, marketplaceName, config.marketplaces, directory, config.verbose)
         
         if (!plugin) {
           return `❌ Plugin "${pluginName}" not found in marketplace "${marketplaceName}"`
@@ -439,6 +444,20 @@ export const CrosstrainPlugin: Plugin = async (ctx: PluginContext) => {
           return `✅ ${result.message}`
         } else {
           return `❌ ${result.message}`
+        }
+      },
+    }),
+
+    crosstrain_clear_cache: tool({
+      description: "Clear the Git marketplace cache. Use this if you want to force re-clone marketplaces from Git sources.",
+      args: {},
+      async execute() {
+        try {
+          await clearGitMarketplaceCache()
+          const cacheDir = getGitCacheDirectory()
+          return `✅ Git marketplace cache cleared successfully.\n\nCache directory: ${cacheDir}\n\nMarketplaces will be re-cloned on next access.`
+        } catch (error) {
+          return `❌ Failed to clear Git marketplace cache: ${error instanceof Error ? error.message : String(error)}`
         }
       },
     }),

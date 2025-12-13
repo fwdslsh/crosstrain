@@ -5,9 +5,11 @@
  * Supports both local directories and Git repositories as marketplace sources.
  */
 
-import { join, resolve, isAbsolute } from "path"
+import { join, resolve, isAbsolute, basename } from "path"
 import { existsSync } from "fs"
-import { readdir, stat } from "fs/promises"
+import { readdir, stat, mkdir, rm } from "fs/promises"
+import { tmpdir } from "os"
+import { execSync } from "child_process"
 import type {
   MarketplaceConfig,
   ClaudeMarketplaceManifest,
@@ -16,6 +18,11 @@ import type {
   ParsedPlugin,
 } from "../types"
 import { readTextFile } from "../utils/parser"
+
+/**
+ * Cache directory for cloned Git repositories
+ */
+const GIT_CACHE_DIR = join(tmpdir(), "crosstrain-marketplaces")
 
 /**
  * Parse a marketplace manifest file
@@ -56,6 +63,102 @@ export async function parsePluginManifest(
   } catch (error) {
     console.error(`Failed to parse plugin manifest at ${manifestPath}:`, error)
     return null
+  }
+}
+
+/**
+ * Generate a safe directory name for a Git URL
+ */
+function getGitCacheDirName(url: string): string {
+  // Remove protocol and special characters, replace with safe characters
+  return url
+    .replace(/^(https?:\/\/|git@)/, "")
+    .replace(/\.git$/, "")
+    .replace(/[^a-zA-Z0-9-_]/g, "-")
+}
+
+/**
+ * Clone or update a Git repository
+ */
+async function cloneOrUpdateGitRepo(
+  url: string,
+  ref?: string,
+  verbose: boolean = false
+): Promise<string> {
+  // Ensure cache directory exists
+  await mkdir(GIT_CACHE_DIR, { recursive: true })
+
+  const cacheDirName = getGitCacheDirName(url)
+  const targetPath = join(GIT_CACHE_DIR, cacheDirName)
+
+  try {
+    if (existsSync(targetPath)) {
+      // Repository already cloned, update it
+      if (verbose) {
+        console.log(`[crosstrain] Updating Git repository: ${url}`)
+      }
+
+      try {
+        // Fetch latest changes
+        execSync("git fetch --all --tags", {
+          cwd: targetPath,
+          stdio: verbose ? "inherit" : "pipe",
+        })
+
+        // Checkout specified ref or default branch
+        if (ref) {
+          execSync(`git checkout ${ref}`, {
+            cwd: targetPath,
+            stdio: verbose ? "inherit" : "pipe",
+          })
+          execSync(`git pull origin ${ref}`, {
+            cwd: targetPath,
+            stdio: verbose ? "inherit" : "pipe",
+          })
+        } else {
+          // Get default branch and update
+          const defaultBranch = execSync(
+            "git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@'",
+            { cwd: targetPath, encoding: "utf-8" }
+          ).trim()
+          execSync(`git checkout ${defaultBranch}`, {
+            cwd: targetPath,
+            stdio: verbose ? "inherit" : "pipe",
+          })
+          execSync(`git pull`, {
+            cwd: targetPath,
+            stdio: verbose ? "inherit" : "pipe",
+          })
+        }
+      } catch (updateError) {
+        // If update fails, try removing and re-cloning
+        if (verbose) {
+          console.warn(`[crosstrain] Failed to update repository, re-cloning...`)
+        }
+        await rm(targetPath, { recursive: true, force: true })
+        // Re-clone below
+      }
+    }
+
+    // Clone if directory doesn't exist (or was just removed)
+    if (!existsSync(targetPath)) {
+      if (verbose) {
+        console.log(`[crosstrain] Cloning Git repository: ${url}`)
+      }
+
+      const cloneArgs = ref ? `--branch ${ref}` : ""
+      execSync(`git clone ${cloneArgs} ${url} ${targetPath}`, {
+        stdio: verbose ? "inherit" : "pipe",
+      })
+    }
+
+    return targetPath
+  } catch (error) {
+    throw new Error(
+      `Failed to clone/update Git repository ${url}: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    )
   }
 }
 
@@ -145,7 +248,8 @@ export async function discoverPluginsInMarketplace(
  */
 export async function loadMarketplace(
   config: MarketplaceConfig,
-  projectRoot: string
+  projectRoot: string,
+  verbose: boolean = false
 ): Promise<{ path: string; manifest: ClaudeMarketplaceManifest | null } | null> {
   if (config.enabled === false) {
     return null
@@ -163,14 +267,22 @@ export async function loadMarketplace(
     return { path: resolved.path, manifest }
   }
 
-  // TODO: Implement Git marketplace sources
-  // Planned approach:
-  // 1. Clone repository to temporary directory using git CLI or isomorphic-git
-  // 2. Checkout specified ref (branch/tag/commit) if provided
-  // 3. Parse marketplace manifest from cloned repository
-  // 4. Cache cloned repositories for subsequent loads
-  // 5. Support periodic updates/pulls for marketplace refreshes
-  console.warn(`Git marketplace sources are not yet implemented: ${resolved.url}`)
+  // Handle Git sources
+  if (resolved.type === "git" && resolved.url) {
+    try {
+      const clonedPath = await cloneOrUpdateGitRepo(resolved.url, config.ref, verbose)
+      const manifest = await parseMarketplaceManifest(clonedPath)
+      return { path: clonedPath, manifest }
+    } catch (error) {
+      console.error(
+        `Failed to load Git marketplace ${config.name}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+      return null
+    }
+  }
+
   return null
 }
 
@@ -179,7 +291,8 @@ export async function loadMarketplace(
  */
 export async function listAvailablePlugins(
   marketplaces: MarketplaceConfig[],
-  projectRoot: string
+  projectRoot: string,
+  verbose: boolean = false
 ): Promise<Map<string, ParsedPlugin[]>> {
   const pluginsByMarketplace = new Map<string, ParsedPlugin[]>()
 
@@ -188,7 +301,7 @@ export async function listAvailablePlugins(
       continue
     }
 
-    const loaded = await loadMarketplace(marketplace, projectRoot)
+    const loaded = await loadMarketplace(marketplace, projectRoot, verbose)
     if (!loaded) {
       continue
     }
@@ -207,7 +320,8 @@ export async function findPlugin(
   pluginName: string,
   marketplaceName: string,
   marketplaces: MarketplaceConfig[],
-  projectRoot: string
+  projectRoot: string,
+  verbose: boolean = false
 ): Promise<ParsedPlugin | null> {
   const marketplace = marketplaces.find(m => m.name === marketplaceName)
 
@@ -215,11 +329,27 @@ export async function findPlugin(
     return null
   }
 
-  const loaded = await loadMarketplace(marketplace, projectRoot)
+  const loaded = await loadMarketplace(marketplace, projectRoot, verbose)
   if (!loaded) {
     return null
   }
 
   const plugins = await discoverPluginsInMarketplace(loaded.path, marketplaceName)
   return plugins.find(p => p.manifest.name === pluginName) || null
+}
+
+/**
+ * Clear the Git marketplace cache
+ */
+export async function clearGitMarketplaceCache(): Promise<void> {
+  if (existsSync(GIT_CACHE_DIR)) {
+    await rm(GIT_CACHE_DIR, { recursive: true, force: true })
+  }
+}
+
+/**
+ * Get the Git cache directory path
+ */
+export function getGitCacheDirectory(): string {
+  return GIT_CACHE_DIR
 }

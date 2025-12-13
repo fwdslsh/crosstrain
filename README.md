@@ -16,7 +16,6 @@ An OpenCode plugin that dynamically loads Claude Code extension points into Open
 ### What's Not Supported
 
 - ❌ **Output Styles**: No OpenCode equivalent (use AGENTS.md or custom agents)
-- ⚠️ **Git-based Marketplaces**: Only local marketplace sources are currently supported (Git sources planned)
 - ❌ **MCP Server Bundling**: Configure MCP servers manually in opencode.json
 
 For details on unsupported features and workarounds, see [FEATURES.md](FEATURES.md).
@@ -152,7 +151,14 @@ Crosstrain now supports installing Claude Code plugins from configured marketpla
     },
     {
       "name": "company-plugins",
+      "source": "https://github.com/your-org/claude-plugins",
+      "ref": "main",
+      "enabled": true
+    },
+    {
+      "name": "github-shorthand",
       "source": "your-org/claude-plugins",
+      "ref": "v1.0.0",
       "enabled": true
     }
   ],
@@ -173,6 +179,13 @@ Crosstrain now supports installing Claude Code plugins from configured marketpla
 }
 ```
 
+**Marketplace Sources:**
+- **Local paths**: `"./marketplaces/local"` or absolute paths
+- **Git HTTPS URLs**: `"https://github.com/org/repo"`
+- **Git SSH URLs**: `"git@github.com:org/repo.git"`
+- **GitHub shorthand**: `"org/repo"` (expanded to `https://github.com/org/repo`)
+- **Optional ref**: Specify branch, tag, or commit with `"ref": "main"` or `"ref": "v1.0.0"`
+
 **Installation Directories:**
 - `"project"` (default) - Installs to `.claude/plugins/` in project
 - `"user"` - Installs to `~/.claude/plugins/` in user home
@@ -183,6 +196,7 @@ Crosstrain now supports installing Claude Code plugins from configured marketpla
 - `crosstrain_list_installed` - Show installation status of configured plugins
 - `crosstrain_install_plugin` - Install a plugin from a marketplace
 - `crosstrain_uninstall_plugin` - Uninstall a plugin
+- `crosstrain_clear_cache` - Clear Git marketplace cache to force re-clone
 
 **Marketplace Structure:**
 ```
@@ -200,7 +214,8 @@ marketplace/
     └── ...
 ```
 
-**Note:** Currently only local marketplace sources are supported. Git-based marketplace sources (GitHub URLs, Git repos) are planned for a future release.
+**Git Marketplace Caching:**
+Git-based marketplaces are automatically cloned to a cache directory (`/tmp/crosstrain-marketplaces/`) and updated on subsequent loads. Use `crosstrain_clear_cache` tool to force re-clone if needed.
 
 ## Directory Structure
 

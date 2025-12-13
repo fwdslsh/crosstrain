@@ -14,6 +14,8 @@ import {
   loadMarketplace,
   listAvailablePlugins,
   findPlugin,
+  clearGitMarketplaceCache,
+  getGitCacheDirectory,
 } from "../loaders/marketplace"
 import type { MarketplaceConfig, ClaudeMarketplaceManifest, ClaudePluginManifest } from "../types"
 
@@ -307,6 +309,36 @@ describe("Marketplace Loader", () => {
 
       const found = await findPlugin("non-existent", "test-marketplace", marketplaces, testDir)
       expect(found).toBeNull()
+    })
+  })
+
+  describe("Git Marketplace Support", () => {
+    it("should recognize Git HTTPS URLs", () => {
+      const result = resolveMarketplaceSource("https://github.com/org/repo", testDir)
+      expect(result.type).toBe("git")
+      expect(result.url).toBe("https://github.com/org/repo")
+    })
+
+    it("should recognize Git SSH URLs", () => {
+      const result = resolveMarketplaceSource("git@github.com:org/repo.git", testDir)
+      expect(result.type).toBe("git")
+      expect(result.url).toBe("git@github.com:org/repo.git")
+    })
+
+    it("should convert GitHub shorthand to HTTPS URL", () => {
+      const result = resolveMarketplaceSource("org/repo", testDir)
+      expect(result.type).toBe("git")
+      expect(result.url).toBe("https://github.com/org/repo")
+    })
+
+    it("should support ref parameter in marketplace config", () => {
+      const config: MarketplaceConfig = {
+        name: "test-marketplace",
+        source: "org/repo",
+        ref: "v1.0.0",
+        enabled: true,
+      }
+      expect(config.ref).toBe("v1.0.0")
     })
   })
 })

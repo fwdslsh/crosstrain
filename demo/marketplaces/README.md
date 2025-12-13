@@ -169,9 +169,9 @@ Add any combination of:
 ### 5. Configure and Use
 Add your marketplace to crosstrain configuration and install your plugin!
 
-## Future: Git-Based Marketplaces
+## Git-Based Marketplaces
 
-The crosstrain plugin is designed to support Git-based marketplaces (not yet implemented):
+The crosstrain plugin fully supports Git-based marketplaces:
 
 ```json
 {
@@ -183,6 +183,12 @@ The crosstrain plugin is designed to support Git-based marketplaces (not yet imp
       "enabled": true
     },
     {
+      "name": "ssh-marketplace",
+      "source": "git@github.com:org/claude-plugins.git",
+      "ref": "v1.0.0",
+      "enabled": true
+    },
+    {
       "name": "shorthand-marketplace",
       "source": "org/claude-plugins",
       "enabled": true
@@ -191,11 +197,20 @@ The crosstrain plugin is designed to support Git-based marketplaces (not yet imp
 }
 ```
 
-When implemented, crosstrain will:
-1. Clone the repository
-2. Checkout the specified branch/tag
-3. Parse the marketplace manifest
-4. Make plugins available for installation
+**How it works:**
+1. Git repositories are automatically cloned to `/tmp/crosstrain-marketplaces/`
+2. Repositories are cached and updated on subsequent loads
+3. Specified branch/tag/commit is checked out using the `ref` parameter
+4. Marketplace manifest is parsed from the cloned repository
+5. Plugins become available for installation
+
+**Supported URL formats:**
+- HTTPS: `https://github.com/org/repo`
+- SSH: `git@github.com:org/repo.git`
+- GitHub shorthand: `org/repo` (expanded to HTTPS)
+
+**Cache management:**
+Use the `crosstrain_clear_cache` tool to clear the Git cache and force re-clone of repositories.
 
 ## See Also
 
