@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 bun install                    # Install dependencies
-bun test                       # Run all tests (218 tests)
+bun test                       # Run all tests (240 tests)
 bun test:watch                 # Watch mode
 bun test --test-name-pattern skills  # Run specific test file
 bun run typecheck              # TypeScript type checking
@@ -19,10 +19,13 @@ bun run build                  # Build to dist/
 
 ## Architecture
 
-### Plugin Entry Point (`src/index.ts`)
+### Plugin Entry Points
+
+- **Root entry**: `index.ts` - Main export for OpenCode plugin discovery
+- **Implementation**: `src/index.ts` - Full plugin implementation
 
 The `CrosstrainPlugin` function is the main export. It:
-1. Loads configuration from multiple sources (files, env vars)
+1. Loads configuration from `.opencode/plugin/crosstrain/settings.json`
 2. Scans `.claude/` directories (project and user-level)
 3. Converts each asset type using specialized loaders
 4. Registers tools and event handlers with OpenCode
@@ -54,12 +57,40 @@ Defines interfaces for both Claude Code and OpenCode formats:
 
 ### Configuration (`src/utils/config.ts`)
 
-Config sources (merged in order):
-1. `crosstrain.config.json` or `.crosstrainrc.json`
-2. `opencode.json` under `plugins.crosstrain`
-3. Environment variables `CROSSTRAIN_*`
+**Settings file location**: `.opencode/plugin/crosstrain/settings.json`
 
-Key config options: `enabled`, `claudeDir`, `openCodeDir`, `watch`, `filePrefix`, `loaders`, `marketplaces`, `plugins`
+Config sources (merged in order, highest priority last):
+1. Default values
+2. `.opencode/plugin/crosstrain/settings.json`
+3. Environment variables `CROSSTRAIN_*`
+4. Direct plugin options
+
+**Key settings** (all optional with sensible defaults):
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `enabled` | `true` | Enable/disable the plugin |
+| `claudeDir` | `.claude` | Path to Claude Code directory |
+| `openCodeDir` | `.opencode` | Path to OpenCode directory |
+| `loadUserAssets` | `true` | Load assets from `~/.claude` |
+| `loadUserSettings` | `true` | Load marketplace/plugin settings from `~/.claude/settings.json` |
+| `watch` | `true` | Watch for file changes |
+| `filePrefix` | `claude_` | Prefix for generated files |
+| `verbose` | `false` | Enable verbose logging |
+| `loaders` | all `true` | Enable/disable specific loaders (skills, agents, commands, hooks, mcp) |
+| `modelMappings` | `{}` | Custom model alias mappings (extends defaults) |
+| `toolMappings` | `{}` | Custom tool name mappings (extends defaults) |
+| `marketplaces` | `[]` | Additional marketplace configs |
+| `plugins` | `[]` | Additional plugin install configs |
+
+**Environment variables**:
+- `CROSSTRAIN_ENABLED`, `CROSSTRAIN_VERBOSE`, `CROSSTRAIN_WATCH`
+- `CROSSTRAIN_CLAUDE_DIR`, `CROSSTRAIN_OPENCODE_DIR`
+- `CROSSTRAIN_LOAD_USER_ASSETS`, `CROSSTRAIN_LOAD_USER_SETTINGS`
+
+**Marketplace/plugin discovery**: Also reads from Claude Code's `settings.json` files:
+- `.claude/settings.json` - `extraKnownMarketplaces` and `enabledPlugins`
+- `~/.claude/settings.json` (if `loadUserSettings` is true)
 
 ### Plugin Tools
 
@@ -96,6 +127,8 @@ Tests are in `src/tests/` with fixtures. Each loader has its own test file. Use 
 ```bash
 bun test --test-name-pattern "skills"
 bun test --test-name-pattern "marketplace"
+bun test --test-name-pattern "config"
+bun test --test-name-pattern "settings"
 ```
 
 ## Reference Documentation

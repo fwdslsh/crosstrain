@@ -14,16 +14,19 @@ import {
   createLogger,
   getResolvedPaths,
   loadEnvConfig,
+  getSettingsPath,
   ConfigLogger,
 } from "../utils/config"
 import { DEFAULT_CONFIG, type CrosstrainConfig } from "../types"
 
 describe("Configuration System", () => {
   let testDir: string
+  let settingsDir: string
 
   beforeEach(async () => {
     testDir = join(process.cwd(), `.test-config-${Date.now()}`)
-    await mkdir(testDir, { recursive: true })
+    settingsDir = join(testDir, ".opencode", "plugin", "crosstrain")
+    await mkdir(settingsDir, { recursive: true })
   })
 
   afterEach(async () => {
@@ -57,6 +60,14 @@ describe("Configuration System", () => {
       expect(DEFAULT_CONFIG.loaders.agents).toBe(true)
       expect(DEFAULT_CONFIG.loaders.commands).toBe(true)
       expect(DEFAULT_CONFIG.loaders.hooks).toBe(true)
+      expect(DEFAULT_CONFIG.loaders.mcp).toBe(true)
+    })
+  })
+
+  describe("getSettingsPath", () => {
+    it("should return correct settings path", () => {
+      const path = getSettingsPath("/project")
+      expect(path).toBe("/project/.opencode/plugin/crosstrain/settings.json")
     })
   })
 
@@ -69,9 +80,9 @@ describe("Configuration System", () => {
       expect(config.openCodeDir).toBe(".opencode")
     })
 
-    it("should load config from .crosstrainrc.json", async () => {
+    it("should load config from .opencode/plugin/crosstrain/settings.json", async () => {
       await writeFile(
-        join(testDir, ".crosstrainrc.json"),
+        join(settingsDir, "settings.json"),
         JSON.stringify({
           claudeDir: "custom-claude",
           verbose: true,
@@ -86,74 +97,9 @@ describe("Configuration System", () => {
       expect(config.openCodeDir).toBe(".opencode")
     })
 
-    it("should load config from crosstrain.config.json", async () => {
-      await writeFile(
-        join(testDir, "crosstrain.config.json"),
-        JSON.stringify({
-          filePrefix: "my_prefix_",
-          watch: false,
-        })
-      )
-
-      const config = await resolveConfig(testDir)
-
-      expect(config.filePrefix).toBe("my_prefix_")
-      expect(config.watch).toBe(false)
-    })
-
-    it("should prioritize .crosstrainrc.json over crosstrain.config.json", async () => {
-      await writeFile(
-        join(testDir, ".crosstrainrc.json"),
-        JSON.stringify({ filePrefix: "rc_prefix_" })
-      )
-      await writeFile(
-        join(testDir, "crosstrain.config.json"),
-        JSON.stringify({ filePrefix: "config_prefix_" })
-      )
-
-      const config = await resolveConfig(testDir)
-
-      // .crosstrainrc.json has higher priority
-      expect(config.filePrefix).toBe("rc_prefix_")
-    })
-
-    it("should load config from opencode.json plugins.crosstrain", async () => {
-      await writeFile(
-        join(testDir, "opencode.json"),
-        JSON.stringify({
-          plugins: {
-            crosstrain: {
-              claudeDir: "from-opencode",
-              verbose: true,
-            },
-          },
-        })
-      )
-
-      const config = await resolveConfig(testDir)
-
-      expect(config.claudeDir).toBe("from-opencode")
-      expect(config.verbose).toBe(true)
-    })
-
-    it("should load config from opencode.json crosstrain key", async () => {
-      await writeFile(
-        join(testDir, "opencode.json"),
-        JSON.stringify({
-          crosstrain: {
-            filePrefix: "opencode_",
-          },
-        })
-      )
-
-      const config = await resolveConfig(testDir)
-
-      expect(config.filePrefix).toBe("opencode_")
-    })
-
     it("should apply direct options with highest priority", async () => {
       await writeFile(
-        join(testDir, ".crosstrainrc.json"),
+        join(settingsDir, "settings.json"),
         JSON.stringify({ claudeDir: "file-config" })
       )
 
@@ -166,7 +112,7 @@ describe("Configuration System", () => {
 
     it("should deep merge loaders configuration", async () => {
       await writeFile(
-        join(testDir, ".crosstrainrc.json"),
+        join(settingsDir, "settings.json"),
         JSON.stringify({
           loaders: {
             skills: false,
@@ -184,7 +130,7 @@ describe("Configuration System", () => {
 
     it("should merge custom model mappings with defaults", async () => {
       await writeFile(
-        join(testDir, ".crosstrainrc.json"),
+        join(settingsDir, "settings.json"),
         JSON.stringify({
           modelMappings: {
             "custom-model": "anthropic/custom-model-123",
@@ -199,6 +145,19 @@ describe("Configuration System", () => {
       // Default mappings should still exist
       expect(config.modelMappings["sonnet"]).toBeDefined()
       expect(config.modelMappings["opus"]).toBeDefined()
+    })
+
+    it("should handle malformed settings.json gracefully", async () => {
+      await writeFile(
+        join(settingsDir, "settings.json"),
+        "{ invalid json"
+      )
+
+      const config = await resolveConfig(testDir)
+
+      // Should fall back to defaults
+      expect(config.enabled).toBe(true)
+      expect(config.claudeDir).toBe(".claude")
     })
   })
 
@@ -239,6 +198,18 @@ describe("Configuration System", () => {
       })
 
       expect(config.claudeDir).toBe("direct-dir")
+    })
+
+    it("should prioritize environment variables over settings file", async () => {
+      await writeFile(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({ claudeDir: "file-dir" })
+      )
+      process.env.CROSSTRAIN_CLAUDE_DIR = "env-dir"
+
+      const config = await loadConfig(testDir)
+
+      expect(config.claudeDir).toBe("env-dir")
     })
   })
 

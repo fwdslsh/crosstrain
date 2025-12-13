@@ -1,0 +1,157 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Crosstrain Settings",
+  "description": "Configuration for the Crosstrain OpenCode plugin",
+  "type": "object",
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable or disable the plugin"
+    },
+    "claudeDir": {
+      "type": "string",
+      "default": ".claude",
+      "description": "Path to the Claude Code directory (relative to project root)"
+    },
+    "openCodeDir": {
+      "type": "string",
+      "default": ".opencode",
+      "description": "Path to the OpenCode directory (relative to project root)"
+    },
+    "loadUserAssets": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether to load user-level assets from ~/.claude"
+    },
+    "loadUserSettings": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether to load settings (marketplaces, plugins) from ~/.claude/settings.json"
+    },
+    "watch": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether to watch for file changes and auto-reload"
+    },
+    "filePrefix": {
+      "type": "string",
+      "default": "claude_",
+      "description": "Prefix for generated files (agents, commands)"
+    },
+    "verbose": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable verbose logging"
+    },
+    "loaders": {
+      "type": "object",
+      "description": "Enable or disable specific loaders (all enabled by default)",
+      "properties": {
+        "skills": {
+          "type": "boolean",
+          "default": true,
+          "description": "Load Claude skills as OpenCode tools"
+        },
+        "agents": {
+          "type": "boolean",
+          "default": true,
+          "description": "Sync Claude agents to OpenCode agents"
+        },
+        "commands": {
+          "type": "boolean",
+          "default": true,
+          "description": "Sync Claude commands to OpenCode commands"
+        },
+        "hooks": {
+          "type": "boolean",
+          "default": true,
+          "description": "Convert Claude hooks to OpenCode event handlers"
+        },
+        "mcp": {
+          "type": "boolean",
+          "default": true,
+          "description": "Sync MCP servers to OpenCode configuration"
+        }
+      }
+    },
+    "modelMappings": {
+      "type": "object",
+      "description": "Custom model mappings (Claude alias -> OpenCode model path). Extends default mappings.",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "examples": [
+        {
+          "custom-model": "anthropic/custom-model-123"
+        }
+      ]
+    },
+    "toolMappings": {
+      "type": "object",
+      "description": "Custom tool mappings (Claude tool name -> OpenCode tool name). Extends default mappings.",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "marketplaces": {
+      "type": "array",
+      "description": "Additional marketplace configurations (supplements Claude Code settings.json)",
+      "items": {
+        "type": "object",
+        "required": ["name", "source"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Marketplace identifier"
+          },
+          "source": {
+            "type": "string",
+            "description": "Local path, Git URL, or GitHub shorthand (org/repo)"
+          },
+          "ref": {
+            "type": "string",
+            "description": "Git branch, tag, or commit"
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether this marketplace is enabled"
+          }
+        }
+      }
+    },
+    "plugins": {
+      "type": "array",
+      "description": "Plugin installation configurations (supplements Claude Code settings.json)",
+      "items": {
+        "type": "object",
+        "required": ["name", "marketplace"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Plugin name"
+          },
+          "marketplace": {
+            "type": "string",
+            "description": "Marketplace name"
+          },
+          "installDir": {
+            "type": "string",
+            "default": "project",
+            "description": "Installation directory: 'project', 'user', or custom path"
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether this plugin is enabled"
+          },
+          "version": {
+            "type": "string",
+            "description": "Plugin version/tag to install"
+          }
+        }
+      }
+    }
+  }
+}

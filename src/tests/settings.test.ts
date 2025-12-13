@@ -307,6 +307,13 @@ describe("Settings Loader", () => {
   })
 
   describe("Integration with config loading", () => {
+    let settingsDir: string
+
+    beforeEach(async () => {
+      settingsDir = join(testDir, ".opencode", "plugin", "crosstrain")
+      await mkdir(settingsDir, { recursive: true })
+    })
+
     it("should merge Claude Code settings with crosstrain config", async () => {
       // Create Claude Code settings
       await writeFile(
@@ -323,9 +330,9 @@ describe("Settings Loader", () => {
         })
       )
 
-      // Create crosstrain config that should override
+      // Create crosstrain config that should add additional marketplaces
       await writeFile(
-        join(testDir, ".crosstrainrc.json"),
+        join(settingsDir, "settings.json"),
         JSON.stringify({
           marketplaces: [
             {
@@ -369,7 +376,7 @@ describe("Settings Loader", () => {
 
       // Create crosstrain config that overrides the marketplace
       await writeFile(
-        join(testDir, ".crosstrainrc.json"),
+        join(settingsDir, "settings.json"),
         JSON.stringify({
           marketplaces: [
             {

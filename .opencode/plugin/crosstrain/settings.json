@@ -1,0 +1,11 @@
+{
+  "$schema": "./settings.schema.json",
+  "enabled": true,
+  "claudeDir": ".claude",
+  "openCodeDir": ".opencode",
+  "loadUserAssets": true,
+  "loadUserSettings": true,
+  "watch": true,
+  "filePrefix": "claude_",
+  "verbose": false
+}

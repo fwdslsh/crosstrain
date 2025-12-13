@@ -10,11 +10,14 @@
  * Assets are loaded automatically when OpenCode starts and watched for
  * changes to provide dynamic updates during a session.
  *
- * Configuration can be provided via:
- * - Plugin options passed directly
- * - opencode.json (under plugins.crosstrain, plugin.crosstrain, or crosstrain)
- * - .crosstrainrc.json or crosstrain.config.json
- * - Environment variables (CROSSTRAIN_*)
+ * Configuration is loaded from (in order of priority):
+ * 1. Direct plugin options (highest)
+ * 2. Environment variables (CROSSTRAIN_*)
+ * 3. .opencode/plugin/crosstrain/settings.json
+ * 4. Default values (lowest)
+ *
+ * Marketplace and plugin settings are also read from Claude Code's
+ * .claude/settings.json files.
  */
 
 import { join } from "path"
