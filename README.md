@@ -8,14 +8,14 @@ An OpenCode plugin that dynamically loads Claude Code extension points into Open
 - **Agents → Agents** (✅ 95%): Converts Claude Code Subagents (`.claude/agents/`) to OpenCode agents (`.opencode/agent/`)
 - **Commands → Commands** (✅ 100%): Converts Claude Code slash commands (`.claude/commands/`) to OpenCode commands (`.opencode/command/`)
 - **Hooks → Event Handlers** (✅ 85%): Converts Claude Code hooks (settings.json) to OpenCode plugin event handlers
+- **Marketplaces & Plugins** (✅ NEW): Install Claude Code plugins from configured marketplaces with flexible installation directories
 - **Dynamic Updates**: Watches for changes and automatically resyncs assets
 
-**Feature Coverage: 4/7 major features supported** - See [FEATURES.md](FEATURES.md) for complete details.
+**Feature Coverage: 5/7 major features supported** - See [FEATURES.md](FEATURES.md) for complete details.
 
 ### What's Not Supported
 
 - ❌ **Output Styles**: No OpenCode equivalent (use AGENTS.md or custom agents)
-- ❌ **Claude Plugin Structure**: Different plugin systems (assets are converted individually)
 - ❌ **MCP Server Bundling**: Configure MCP servers manually in opencode.json
 
 For details on unsupported features and workarounds, see [FEATURES.md](FEATURES.md).
@@ -135,6 +135,87 @@ Becomes an OpenCode tool: `skill_generating_commit_messages`
 - Hooks receive JSON input via stdin (same as Claude Code)
 - Exit code 2 blocks tool execution (throws error in OpenCode)
 - Matchers support pipe-separated patterns (e.g., `Edit|Write`)
+
+### Claude Code Marketplaces & Plugin Installation
+
+Crosstrain now supports installing Claude Code plugins from configured marketplaces, mirroring the plugin installation capabilities from Claude Code.
+
+**Configuration:**
+```json
+{
+  "marketplaces": [
+    {
+      "name": "local-marketplace",
+      "source": "./marketplaces/local",
+      "enabled": true
+    },
+    {
+      "name": "company-plugins",
+      "source": "https://github.com/your-org/claude-plugins",
+      "ref": "main",
+      "enabled": true
+    },
+    {
+      "name": "github-shorthand",
+      "source": "your-org/claude-plugins",
+      "ref": "v1.0.0",
+      "enabled": true
+    }
+  ],
+  "plugins": [
+    {
+      "name": "my-plugin",
+      "marketplace": "local-marketplace",
+      "installDir": "project",
+      "enabled": true
+    },
+    {
+      "name": "team-tools",
+      "marketplace": "company-plugins",
+      "installDir": "user",
+      "enabled": true
+    }
+  ]
+}
+```
+
+**Marketplace Sources:**
+- **Local paths**: `"./marketplaces/local"` or absolute paths
+- **Git HTTPS URLs**: `"https://github.com/org/repo"`
+- **Git SSH URLs**: `"git@github.com:org/repo.git"`
+- **GitHub shorthand**: `"org/repo"` (expanded to `https://github.com/org/repo`)
+- **Optional ref**: Specify branch, tag, or commit with `"ref": "main"` or `"ref": "v1.0.0"`
+
+**Installation Directories:**
+- `"project"` (default) - Installs to `.claude/plugins/` in project
+- `"user"` - Installs to `~/.claude/plugins/` in user home
+- Custom path - Any absolute or relative path
+
+**Available Tools:**
+- `crosstrain_list_marketplaces` - List all configured marketplaces and available plugins
+- `crosstrain_list_installed` - Show installation status of configured plugins
+- `crosstrain_install_plugin` - Install a plugin from a marketplace
+- `crosstrain_uninstall_plugin` - Uninstall a plugin
+- `crosstrain_clear_cache` - Clear Git marketplace cache to force re-clone
+
+**Marketplace Structure:**
+```
+marketplace/
+├── .claude-plugin/
+│   └── marketplace.json       # Marketplace manifest
+├── plugin1/
+│   ├── .claude-plugin/
+│   │   └── plugin.json        # Plugin manifest
+│   ├── skills/                 # Plugin components
+│   ├── agents/
+│   ├── commands/
+│   └── hooks/
+└── plugin2/
+    └── ...
+```
+
+**Git Marketplace Caching:**
+Git-based marketplaces are automatically cloned to a cache directory (`/tmp/crosstrain-marketplaces/`) and updated on subsequent loads. Use `crosstrain_clear_cache` tool to force re-clone if needed.
 
 ## Directory Structure
 

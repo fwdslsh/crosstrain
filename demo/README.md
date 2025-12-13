@@ -11,6 +11,7 @@ demo/
 ├── agents/             # Agents → Agents examples
 ├── commands/           # Commands → Commands examples
 ├── hooks/              # Hooks → Event Handlers examples
+├── marketplaces/       # Marketplace & Plugin Installation examples
 └── package.json        # Shared dependencies for all demos
 ```
 
@@ -72,6 +73,15 @@ Shows how Claude Code hooks are converted to OpenCode plugin event handlers.
 - `02-post-tool-use.ts` - PostToolUse hook example
 - `03-session-events.ts` - Session start/end hooks
 
+### 5. Marketplaces & Plugin Installation (`./marketplaces/`)
+
+Demonstrates how to configure and use Claude Code marketplaces to install plugins with crosstrain. Includes an example marketplace with a sample plugin.
+
+**Contents:**
+- `README.md` - Complete guide to marketplace usage
+- `demo-marketplace/` - Example marketplace with plugin
+- Configuration examples for different installation directories
+
 ## Running the Demos
 
 Each demo is a standalone TypeScript file that can be executed with Node.js or Bun:
@@ -116,6 +126,11 @@ We recommend following the demos in this order:
 3. Explore **Agents** (`./agents/01-basic-agent.ts`)
    - Learn about agent configuration
    - Understand frontmatter mapping
+
+4. Try **Marketplaces** (`./marketplaces/`)
+   - Set up a marketplace
+   - Install plugins from marketplaces
+   - Manage plugin installations
 
 4. Finish with **Hooks** (`./hooks/01-pre-tool-use.ts`)
    - See event handlers in action

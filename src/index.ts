@@ -40,6 +40,20 @@ import { createToolsFromSkills } from "./loaders/skills"
 import { syncAgentsToOpenCode, discoverAgents } from "./loaders/agents"
 import { syncCommandsToOpenCode, discoverCommands } from "./loaders/commands"
 import { buildHookHandlers } from "./loaders/hooks"
+import {
+  listAvailablePlugins,
+  findPlugin,
+  clearGitMarketplaceCache,
+  getGitCacheDirectory,
+} from "./loaders/marketplace"
+import {
+  installConfiguredPlugins,
+  installPlugin,
+  uninstallPlugin,
+  listInstalledPlugins,
+  getPluginInstallStatus,
+  resolveInstallDir,
+} from "./loaders/plugin-installer"
 
 // Import utilities
 import {
@@ -207,6 +221,34 @@ export const CrosstrainPlugin: Plugin = async (ctx: PluginContext) => {
     }
   }
 
+  // Install configured plugins from marketplaces
+  if (config.marketplaces.length > 0 && config.plugins.length > 0) {
+    try {
+      logger.info("Installing configured plugins from marketplaces...")
+      const installResults = await installConfiguredPlugins(
+        config.plugins,
+        config.marketplaces,
+        directory,
+        { verbose: config.verbose }
+      )
+
+      if (installResults.installed.length > 0) {
+        logger.info(`Installed plugins: ${installResults.installed.join(", ")}`)
+      }
+      if (installResults.skipped.length > 0) {
+        logger.log(`Skipped plugins: ${installResults.skipped.join(", ")}`)
+      }
+      if (installResults.failed.length > 0) {
+        logger.warn(`Failed to install plugins:`)
+        installResults.failed.forEach(({ plugin, reason }) => {
+          logger.warn(`  - ${plugin}: ${reason}`)
+        })
+      }
+    } catch (error) {
+      logger.error("Error installing plugins:", error)
+    }
+  }
+
   // Set up file watcher for dynamic updates (if enabled)
   if (config.watch) {
     state.watcher = createWatcher({
@@ -272,10 +314,165 @@ export const CrosstrainPlugin: Plugin = async (ctx: PluginContext) => {
 
   logger.info("Plugin initialized successfully")
 
+  // Create plugin management tools
+  const pluginManagementTools: Record<string, ToolDefinition> = {
+    crosstrain_list_marketplaces: tool({
+      description: "List all configured Claude Code marketplaces and their available plugins",
+      args: {},
+      async execute() {
+        const marketplaces = config.marketplaces
+        
+        if (marketplaces.length === 0) {
+          return "No marketplaces configured. Add marketplaces in your crosstrain configuration."
+        }
+
+        const pluginsByMarketplace = await listAvailablePlugins(marketplaces, directory, config.verbose)
+        
+        let output = "# Configured Claude Code Marketplaces\n\n"
+        
+        for (const marketplace of marketplaces) {
+          const plugins = pluginsByMarketplace.get(marketplace.name) || []
+          const status = marketplace.enabled === false ? "❌ Disabled" : "✅ Enabled"
+          
+          output += `## ${marketplace.name} ${status}\n`
+          output += `**Source:** ${marketplace.source}\n\n`
+          
+          if (plugins.length === 0) {
+            output += "_No plugins found_\n\n"
+          } else {
+            output += "### Available Plugins:\n\n"
+            for (const plugin of plugins) {
+              output += `- **${plugin.manifest.name}** - ${plugin.manifest.description || "No description"}\n`
+              output += `  - Version: ${plugin.manifest.version || "N/A"}\n`
+              const components = []
+              if (plugin.hasSkills) components.push("Skills")
+              if (plugin.hasAgents) components.push("Agents")
+              if (plugin.hasCommands) components.push("Commands")
+              if (plugin.hasHooks) components.push("Hooks")
+              if (plugin.hasMCP) components.push("MCP")
+              output += `  - Components: ${components.join(", ") || "None"}\n`
+            }
+            output += "\n"
+          }
+        }
+        
+        return output
+      },
+    }),
+
+    crosstrain_list_installed: tool({
+      description: "List all installed Claude Code plugins and their installation status",
+      args: {},
+      async execute() {
+        if (config.plugins.length === 0) {
+          return "No plugins configured for installation. Add plugins in your crosstrain configuration."
+        }
+
+        const status = await getPluginInstallStatus(config.plugins, directory)
+        
+        let output = "# Installed Claude Code Plugins\n\n"
+        
+        for (const pluginConfig of config.plugins) {
+          const pluginStatus = status.get(pluginConfig.name)
+          const enabled = pluginConfig.enabled !== false ? "✅" : "❌"
+          const installed = pluginStatus?.installed ? "✅" : "❌"
+          
+          output += `## ${enabled} ${pluginConfig.name}\n`
+          output += `- **Marketplace:** ${pluginConfig.marketplace}\n`
+          output += `- **Installation Status:** ${installed ? "Installed" : "Not Installed"}\n`
+          output += `- **Target Directory:** ${pluginConfig.installDir || "project"}\n`
+          
+          if (pluginStatus?.location) {
+            output += `- **Location:** ${pluginStatus.location}\n`
+          }
+          
+          output += "\n"
+        }
+        
+        return output
+      },
+    }),
+
+    crosstrain_install_plugin: tool({
+      description: "Install a specific Claude Code plugin from a configured marketplace",
+      args: {
+        pluginName: toolSchema.string().describe("Name of the plugin to install"),
+        marketplace: toolSchema.string().describe("Name of the marketplace containing the plugin"),
+        installDir: toolSchema.string().optional().describe("Installation directory (project, user, or custom path). Defaults to project"),
+        force: toolSchema.boolean().optional().describe("Force reinstall if already installed. Defaults to false"),
+      },
+      async execute(args) {
+        const { pluginName, marketplace: marketplaceName, installDir: customInstallDir, force = false } = args
+
+        // Find the plugin
+        const plugin = await findPlugin(pluginName, marketplaceName, config.marketplaces, directory, config.verbose)
+        
+        if (!plugin) {
+          return `❌ Plugin "${pluginName}" not found in marketplace "${marketplaceName}"`
+        }
+
+        // Resolve installation directory
+        const installDir = resolveInstallDir(customInstallDir || "project", directory)
+
+        // Install the plugin
+        const result = await installPlugin(plugin, installDir, { force, verbose: config.verbose })
+
+        if (result.success) {
+          return `✅ ${result.message}\n\nRestart OpenCode to load the newly installed plugin.`
+        } else {
+          return `❌ ${result.message}`
+        }
+      },
+    }),
+
+    crosstrain_uninstall_plugin: tool({
+      description: "Uninstall a Claude Code plugin from a specified directory",
+      args: {
+        pluginName: toolSchema.string().describe("Name of the plugin to uninstall"),
+        installDir: toolSchema.string().optional().describe("Installation directory where plugin is installed (project, user, or custom path). Defaults to project"),
+      },
+      async execute(args) {
+        const { pluginName, installDir: customInstallDir } = args
+
+        // Resolve installation directory
+        const installDir = resolveInstallDir(customInstallDir || "project", directory)
+
+        // Uninstall the plugin
+        const result = await uninstallPlugin(pluginName, installDir, { verbose: config.verbose })
+
+        if (result.success) {
+          return `✅ ${result.message}`
+        } else {
+          return `❌ ${result.message}`
+        }
+      },
+    }),
+
+    crosstrain_clear_cache: tool({
+      description: "Clear the Git marketplace cache. Use this if you want to force re-clone marketplaces from Git sources.",
+      args: {},
+      async execute() {
+        try {
+          await clearGitMarketplaceCache()
+          const cacheDir = getGitCacheDirectory()
+          return `✅ Git marketplace cache cleared successfully.\n\nCache directory: ${cacheDir}\n\nMarketplaces will be re-cloned on next access.`
+        } catch (error) {
+          return `❌ Failed to clear Git marketplace cache: ${error instanceof Error ? error.message : String(error)}`
+        }
+      },
+    }),
+  }
+
+  // Merge plugin management tools with skill tools
+  const allTools = {
+    ...state.tools,
+    ...pluginManagementTools,
+  }
+
   // Return the plugin interface
   return {
-    // Expose tools converted from skills
-    tool: Object.keys(state.tools).length > 0 ? state.tools : undefined,
+    // Expose tools converted from skills and plugin management tools
+    tool: Object.keys(allTools).length > 0 ? allTools : undefined,
 
     // Tool execution hooks (from Claude hooks)
     "tool.execute.before": state.hookHandlers.toolExecuteBefore
