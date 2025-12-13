@@ -1,0 +1,37 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Create release archive
+        run: |
+          mkdir -p dist/crosstrain
+          cp -r src dist/crosstrain/
+          cp package.json dist/crosstrain/
+          cp tsconfig.json dist/crosstrain/
+          cp README.md dist/crosstrain/ 2>/dev/null || true
+          cp LICENSE dist/crosstrain/ 2>/dev/null || true
+          cd dist
+          tar -czvf crosstrain-${{ steps.version.outputs.VERSION }}.tar.gz crosstrain
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/crosstrain-${{ steps.version.outputs.VERSION }}.tar.gz
+          generate_release_notes: true

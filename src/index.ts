@@ -73,6 +73,7 @@ import {
 export * from "./types"
 export * from "./utils/parser"
 export * from "./utils/config"
+export * from "./utils/settings"
 
 /**
  * State management for dynamic reloading

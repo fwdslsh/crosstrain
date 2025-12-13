@@ -36,6 +36,8 @@ describe("Configuration System", () => {
     delete process.env.CROSSTRAIN_WATCH
     delete process.env.CROSSTRAIN_CLAUDE_DIR
     delete process.env.CROSSTRAIN_OPENCODE_DIR
+    delete process.env.CROSSTRAIN_LOAD_USER_ASSETS
+    delete process.env.CROSSTRAIN_LOAD_USER_SETTINGS
   })
 
   describe("DEFAULT_CONFIG", () => {
@@ -44,6 +46,7 @@ describe("Configuration System", () => {
       expect(DEFAULT_CONFIG.claudeDir).toBe(".claude")
       expect(DEFAULT_CONFIG.openCodeDir).toBe(".opencode")
       expect(DEFAULT_CONFIG.loadUserAssets).toBe(true)
+      expect(DEFAULT_CONFIG.loadUserSettings).toBe(true)
       expect(DEFAULT_CONFIG.watch).toBe(true)
       expect(DEFAULT_CONFIG.filePrefix).toBe("claude_")
       expect(DEFAULT_CONFIG.verbose).toBe(false)
@@ -270,6 +273,22 @@ describe("Configuration System", () => {
 
       process.env.CROSSTRAIN_VERBOSE = "false"
       expect(loadEnvConfig().verbose).toBe(false)
+    })
+
+    it("should parse CROSSTRAIN_LOAD_USER_ASSETS correctly", () => {
+      process.env.CROSSTRAIN_LOAD_USER_ASSETS = "false"
+      expect(loadEnvConfig().loadUserAssets).toBe(false)
+
+      process.env.CROSSTRAIN_LOAD_USER_ASSETS = "true"
+      expect(loadEnvConfig().loadUserAssets).toBe(true)
+    })
+
+    it("should parse CROSSTRAIN_LOAD_USER_SETTINGS correctly", () => {
+      process.env.CROSSTRAIN_LOAD_USER_SETTINGS = "false"
+      expect(loadEnvConfig().loadUserSettings).toBe(false)
+
+      process.env.CROSSTRAIN_LOAD_USER_SETTINGS = "true"
+      expect(loadEnvConfig().loadUserSettings).toBe(true)
     })
   })
 

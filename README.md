@@ -22,36 +22,38 @@ For details on unsupported features and workarounds, see [FEATURES.md](FEATURES.
 
 ## Installation
 
-### As an OpenCode Plugin
-
-1. Clone or copy this repository to your OpenCode plugin directory:
-   ```bash
-   # Project-local
-   cp -r crosstrain .opencode/plugin/crosstrain
-
-   # Or global
-   cp -r crosstrain ~/.config/opencode/plugin/crosstrain
-   ```
-
-2. Install dependencies:
-   ```bash
-   cd .opencode/plugin/crosstrain
-   bun install
-   ```
-
-3. Restart OpenCode to load the plugin
-
-### Development
+### Quick Install
 
 ```bash
-# Install dependencies
+curl -fsSL https://raw.githubusercontent.com/fwdslsh/crosstrain/main/install.sh | bash
+```
+
+For global (user-wide) installation:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/fwdslsh/crosstrain/main/install.sh | bash -s -- global
+```
+
+### Development Setup
+
+For contributors or those who want to modify the plugin:
+
+```bash
+git clone https://github.com/fwdslsh/crosstrain.git
+cd crosstrain
 bun install
+
+# Run tests
+bun test
 
 # Type check
 bun run typecheck
 
 # Build
 bun run build
+
+# Link to your project for testing
+cp -r . .opencode/plugin/crosstrain
 ```
 
 ## Mapping Reference

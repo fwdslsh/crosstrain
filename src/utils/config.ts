@@ -13,6 +13,8 @@ import { existsSync } from "fs"
 import type {
   CrosstrainConfig,
   ResolvedCrossstrainConfig,
+  MarketplaceConfig,
+  PluginInstallConfig,
 } from "../types"
 import {
   DEFAULT_CONFIG,
@@ -20,6 +22,7 @@ import {
   TOOL_MAPPING,
 } from "../types"
 import { readTextFile } from "./parser"
+import { loadMarketplaceAndPluginSettings } from "./settings"
 
 /**
  * Configuration file names to search for (in priority order)
@@ -149,6 +152,55 @@ function deepMerge(target: Record<string, any>, source: Record<string, any>): Re
 }
 
 /**
+ * Merge marketplace configs, avoiding duplicates by name
+ */
+function mergeMarketplaces(
+  base: MarketplaceConfig[],
+  override: MarketplaceConfig[]
+): MarketplaceConfig[] {
+  const result = [...base]
+
+  for (const marketplace of override) {
+    const existingIndex = result.findIndex(m => m.name === marketplace.name)
+    if (existingIndex >= 0) {
+      // Override existing marketplace
+      result[existingIndex] = { ...result[existingIndex], ...marketplace }
+    } else {
+      // Add new marketplace
+      result.push(marketplace)
+    }
+  }
+
+  return result
+}
+
+/**
+ * Merge plugin configs, avoiding duplicates by name+marketplace
+ */
+function mergePlugins(
+  base: PluginInstallConfig[],
+  override: PluginInstallConfig[]
+): PluginInstallConfig[] {
+  const result = [...base]
+
+  for (const plugin of override) {
+    const key = `${plugin.name}@${plugin.marketplace}`
+    const existingIndex = result.findIndex(
+      p => `${p.name}@${p.marketplace}` === key
+    )
+    if (existingIndex >= 0) {
+      // Override existing plugin config
+      result[existingIndex] = { ...result[existingIndex], ...plugin }
+    } else {
+      // Add new plugin
+      result.push(plugin)
+    }
+  }
+
+  return result
+}
+
+/**
  * Resolve configuration by merging from all sources
  */
 export async function resolveConfig(
@@ -184,6 +236,32 @@ export async function resolveConfig(
   config.toolMappings = {
     ...TOOL_MAPPING,
     ...config.toolMappings,
+  }
+
+  // Layer 4: Load marketplace and plugin settings from Claude Code settings.json files
+  // These are loaded as base settings that can be overridden by crosstrain config
+  const claudeDir = join(directory, config.claudeDir || ".claude")
+  const loadUserSettings = config.loadUserSettings !== false
+
+  try {
+    const claudeSettings = await loadMarketplaceAndPluginSettings(
+      claudeDir,
+      loadUserSettings
+    )
+
+    // Merge Claude Code settings with crosstrain config
+    // Crosstrain config takes priority (existing marketplaces/plugins override Claude Code settings)
+    config.marketplaces = mergeMarketplaces(
+      claudeSettings.marketplaces,
+      config.marketplaces || []
+    )
+    config.plugins = mergePlugins(
+      claudeSettings.plugins,
+      config.plugins || []
+    )
+  } catch (error) {
+    // Silently ignore errors loading Claude Code settings
+    // Config-based marketplaces/plugins will still work
   }
 
   return config as ResolvedCrossstrainConfig
@@ -244,7 +322,7 @@ export function getResolvedPaths(
 
 /**
  * Load configuration from environment variables
- * Supports: CROSSTRAIN_ENABLED, CROSSTRAIN_VERBOSE, CROSSTRAIN_WATCH
+ * Supports: CROSSTRAIN_ENABLED, CROSSTRAIN_VERBOSE, CROSSTRAIN_WATCH, etc.
  */
 export function loadEnvConfig(): CrosstrainConfig {
   const config: CrosstrainConfig = {}
@@ -267,6 +345,14 @@ export function loadEnvConfig(): CrosstrainConfig {
 
   if (process.env.CROSSTRAIN_OPENCODE_DIR) {
     config.openCodeDir = process.env.CROSSTRAIN_OPENCODE_DIR
+  }
+
+  if (process.env.CROSSTRAIN_LOAD_USER_ASSETS !== undefined) {
+    config.loadUserAssets = process.env.CROSSTRAIN_LOAD_USER_ASSETS !== "false" && process.env.CROSSTRAIN_LOAD_USER_ASSETS !== "0"
+  }
+
+  if (process.env.CROSSTRAIN_LOAD_USER_SETTINGS !== undefined) {
+    config.loadUserSettings = process.env.CROSSTRAIN_LOAD_USER_SETTINGS !== "false" && process.env.CROSSTRAIN_LOAD_USER_SETTINGS !== "0"
   }
 
   return config

@@ -35,6 +35,13 @@ export interface CrosstrainConfig {
   loadUserAssets?: boolean
 
   /**
+   * Whether to load settings (marketplaces, plugins) from ~/.claude/settings.json
+   * When false, only project-level .claude/settings.json is used
+   * @default true
+   */
+  loadUserSettings?: boolean
+
+  /**
    * Whether to watch for file changes and auto-reload
    * @default true
    */
@@ -118,6 +125,7 @@ export interface ResolvedCrossstrainConfig {
   claudeDir: string
   openCodeDir: string
   loadUserAssets: boolean
+  loadUserSettings: boolean
   watch: boolean
   filePrefix: string
   verbose: boolean
@@ -142,6 +150,7 @@ export const DEFAULT_CONFIG: ResolvedCrossstrainConfig = {
   claudeDir: ".claude",
   openCodeDir: ".opencode",
   loadUserAssets: true,
+  loadUserSettings: true,
   watch: true,
   filePrefix: "claude_",
   verbose: false,
@@ -349,6 +358,66 @@ export const HOOK_EVENT_MAPPING: Record<string, string> = {
   Notification: "tui.toast.show",
   Stop: "session.idle",
   SubagentStop: "session.idle",
+}
+
+// ========================================
+// Claude Code Settings Types
+// ========================================
+
+/**
+ * Marketplace source configuration (from Claude Code settings.json)
+ * Can be GitHub, Git URL, or local directory
+ */
+export interface ClaudeMarketplaceSource {
+  /**
+   * Source type: github, git, or directory
+   */
+  source: "github" | "git" | "directory"
+
+  /**
+   * GitHub repository (for source: "github")
+   * Format: "org/repo"
+   */
+  repo?: string
+
+  /**
+   * Git URL (for source: "git")
+   */
+  url?: string
+
+  /**
+   * Local filesystem path (for source: "directory")
+   */
+  path?: string
+}
+
+/**
+ * Extra known marketplace entry (from Claude Code settings.json)
+ */
+export interface ClaudeExtraKnownMarketplace {
+  source: ClaudeMarketplaceSource
+}
+
+/**
+ * Claude Code settings.json structure (relevant parts)
+ */
+export interface ClaudeSettings {
+  /**
+   * Enabled plugins map
+   * Format: "plugin-name@marketplace-name": true/false
+   */
+  enabledPlugins?: Record<string, boolean>
+
+  /**
+   * Extra known marketplaces
+   * Format: "marketplace-name": { source: { ... } }
+   */
+  extraKnownMarketplaces?: Record<string, ClaudeExtraKnownMarketplace>
+
+  /**
+   * Hooks configuration
+   */
+  hooks?: ClaudeHooksConfig
 }
 
 // ========================================
