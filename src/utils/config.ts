@@ -122,10 +122,10 @@ async function loadConfigFromFile(directory: string): Promise<CrosstrainConfig |
 /**
  * Deep merge two objects
  */
-function deepMerge<T extends Record<string, unknown>>(target: T, source: Partial<T>): T {
+function deepMerge(target: Record<string, any>, source: Record<string, any>): Record<string, any> {
   const result = { ...target }
 
-  for (const key of Object.keys(source) as (keyof T)[]) {
+  for (const key of Object.keys(source)) {
     const sourceValue = source[key]
     const targetValue = result[key]
 
@@ -139,12 +139,9 @@ function deepMerge<T extends Record<string, unknown>>(target: T, source: Partial
       !Array.isArray(targetValue)
     ) {
       // Recursively merge objects
-      result[key] = deepMerge(
-        targetValue as Record<string, unknown>,
-        sourceValue as Record<string, unknown>
-      ) as T[keyof T]
+      result[key] = deepMerge(targetValue, sourceValue)
     } else if (sourceValue !== undefined) {
-      result[key] = sourceValue as T[keyof T]
+      result[key] = sourceValue
     }
   }
 
@@ -159,23 +156,23 @@ export async function resolveConfig(
   options?: CrosstrainConfig
 ): Promise<ResolvedCrossstrainConfig> {
   // Start with defaults
-  let config: ResolvedCrossstrainConfig = { ...DEFAULT_CONFIG }
+  let config = { ...DEFAULT_CONFIG } as Record<string, any>
 
   // Layer 1: Load from config file
   const fileConfig = await loadConfigFromFile(directory)
   if (fileConfig) {
-    config = deepMerge(config, fileConfig as Partial<ResolvedCrossstrainConfig>)
+    config = deepMerge(config, fileConfig as Record<string, any>)
   }
 
   // Layer 2: Load from opencode.json
   const openCodeConfig = await loadOpenCodeConfig(directory)
   if (openCodeConfig) {
-    config = deepMerge(config, openCodeConfig as Partial<ResolvedCrossstrainConfig>)
+    config = deepMerge(config, openCodeConfig as Record<string, any>)
   }
 
   // Layer 3: Apply direct options (highest priority)
   if (options) {
-    config = deepMerge(config, options as Partial<ResolvedCrossstrainConfig>)
+    config = deepMerge(config, options as Record<string, any>)
   }
 
   // Merge custom mappings with defaults
@@ -189,7 +186,7 @@ export async function resolveConfig(
     ...config.toolMappings,
   }
 
-  return config
+  return config as ResolvedCrossstrainConfig
 }
 
 /**
@@ -215,7 +212,7 @@ export function validateConfig(config: ResolvedCrossstrainConfig): string[] {
 
   // Check if all loaders are disabled
   const { loaders } = config
-  if (!loaders.skills && !loaders.agents && !loaders.commands && !loaders.hooks) {
+  if (!loaders.skills && !loaders.agents && !loaders.commands && !loaders.hooks && !loaders.mcp) {
     warnings.push("All loaders are disabled, plugin will not load any assets")
   }
 

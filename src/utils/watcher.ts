@@ -16,6 +16,7 @@ export interface WatcherConfig {
   onAgentChange?: () => Promise<void>
   onCommandChange?: () => Promise<void>
   onHookChange?: () => Promise<void>
+  onMCPChange?: () => Promise<void>
 }
 
 export interface WatcherInstance {
@@ -167,6 +168,46 @@ export function createWatcher(config: WatcherConfig): WatcherInstance {
     if (userWatcher) watchers.push(userWatcher)
   }
 
+  // Watch .mcp.json files for MCP server configuration
+  if (config.onMCPChange) {
+    const debouncedCallback = debounce(config.onMCPChange, debounceMs)
+
+    // Watch project-level .mcp.json (in project root)
+    const projectRoot = join(config.claudeDir, "..")
+    const projectMcpPath = join(projectRoot, ".mcp.json")
+    const projectWatcher = watchFile(projectMcpPath, (event) => {
+      console.log(`[crosstrain] MCP config ${event}`)
+      debouncedCallback()
+    })
+    if (projectWatcher) watchers.push(projectWatcher)
+
+    // Watch user-level .mcp.json
+    const userMcpPath = join(config.homeDir, ".claude", ".mcp.json")
+    const userWatcher = watchFile(userMcpPath, (event) => {
+      console.log(`[crosstrain] User MCP config ${event}`)
+      debouncedCallback()
+    })
+    if (userWatcher) watchers.push(userWatcher)
+
+    // Also watch ~/.mcp.json
+    const homeRootMcpPath = join(config.homeDir, ".mcp.json")
+    const homeRootWatcher = watchFile(homeRootMcpPath, (event) => {
+      console.log(`[crosstrain] Home MCP config ${event}`)
+      debouncedCallback()
+    })
+    if (homeRootWatcher) watchers.push(homeRootWatcher)
+
+    // Watch plugins directory for plugin MCP configs
+    const pluginsDir = join(config.claudeDir, "plugins")
+    const pluginsWatcher = watchDirectory(pluginsDir, (event, filename) => {
+      if (filename && filename.endsWith(".mcp.json")) {
+        console.log(`[crosstrain] Plugin MCP config ${event}: ${filename}`)
+        debouncedCallback()
+      }
+    })
+    if (pluginsWatcher) watchers.push(pluginsWatcher)
+  }
+
   return {
     close: async () => {
       for (const watcher of watchers) {
@@ -184,15 +225,20 @@ export function hasClaudeCodeAssets(
   claudeDir: string,
   homeDir: string
 ): boolean {
+  const projectRoot = join(claudeDir, "..")
   const paths = [
     join(claudeDir, "skills"),
     join(claudeDir, "agents"),
     join(claudeDir, "commands"),
     join(claudeDir, "settings.json"),
+    join(claudeDir, "plugins"),
+    join(projectRoot, ".mcp.json"),
     join(homeDir, ".claude", "skills"),
     join(homeDir, ".claude", "agents"),
     join(homeDir, ".claude", "commands"),
     join(homeDir, ".claude", "settings.json"),
+    join(homeDir, ".claude", ".mcp.json"),
+    join(homeDir, ".mcp.json"),
   ]
 
   return paths.some(existsSync)
@@ -209,7 +255,9 @@ export async function getAssetSummary(
   hasAgents: boolean
   hasCommands: boolean
   hasHooks: boolean
+  hasMCP: boolean
 }> {
+  const projectRoot = join(claudeDir, "..")
   return {
     hasSkills:
       existsSync(join(claudeDir, "skills")) ||
@@ -223,5 +271,10 @@ export async function getAssetSummary(
     hasHooks:
       existsSync(join(claudeDir, "settings.json")) ||
       existsSync(join(homeDir, ".claude", "settings.json")),
+    hasMCP:
+      existsSync(join(projectRoot, ".mcp.json")) ||
+      existsSync(join(claudeDir, "plugins")) ||
+      existsSync(join(homeDir, ".claude", ".mcp.json")) ||
+      existsSync(join(homeDir, ".mcp.json")),
   }
 }

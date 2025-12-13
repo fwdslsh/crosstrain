@@ -321,6 +321,7 @@ describe("Configuration System", () => {
           agents: false,
           commands: false,
           hooks: false,
+          mcp: false,
         },
       }
 

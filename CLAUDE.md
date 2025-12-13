@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**crosstrain** is an OpenCode plugin that bridges Claude Code's extension ecosystem to OpenCode. It converts Claude Code skills, agents, commands, and hooks into their OpenCode equivalents, enabling users of both AI assistants to share extension points.
+**crosstrain** is an OpenCode plugin that bridges Claude Code's extension ecosystem to OpenCode. It converts Claude Code skills, agents, commands, hooks, and MCP servers into their OpenCode equivalents, enabling users of both AI assistants to share extension points.
 
 ## Development Commands
 
 ```bash
 bun install                    # Install dependencies
-bun test                       # Run all tests (194 tests)
+bun test                       # Run all tests (218 tests)
 bun test:watch                 # Watch mode
 bun test --test-name-pattern skills  # Run specific test file
 bun run typecheck              # TypeScript type checking
@@ -41,6 +41,7 @@ Each loader follows a consistent pattern with three phases:
 | `agents.ts` | `.claude/agents/*.md` | `.opencode/agent/claude_*.md` |
 | `commands.ts` | `.claude/commands/*.md` | `.opencode/command/claude_*.md` |
 | `hooks.ts` | `.claude/settings.json` | Event handlers (`tool.execute.before/after`) |
+| `mcp.ts` | `.mcp.json` files | `opencode.json` → `mcp` section |
 | `marketplace.ts` | Marketplace sources | Plugin discovery |
 | `plugin-installer.ts` | Marketplace plugins | `.claude/plugins/` |
 
@@ -67,6 +68,8 @@ The plugin exposes management tools to OpenCode:
 - `crosstrain_list_installed` - Show plugin installation status
 - `crosstrain_install_plugin` / `crosstrain_uninstall_plugin` - Manage plugins
 - `crosstrain_clear_cache` - Clear Git marketplace cache
+- `crosstrain_list_mcp` - List discovered MCP servers
+- `crosstrain_sync_mcp` - Force re-sync MCP servers to OpenCode config
 
 ## Key Mappings
 

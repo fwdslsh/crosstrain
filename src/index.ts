@@ -41,6 +41,12 @@ import { syncAgentsToOpenCode, discoverAgents } from "./loaders/agents"
 import { syncCommandsToOpenCode, discoverCommands } from "./loaders/commands"
 import { buildHookHandlers } from "./loaders/hooks"
 import {
+  getAllMCPServers,
+  syncMCPToOpenCode,
+  getMCPSummary,
+} from "./loaders/mcp"
+import type { DiscoveredMCPServer } from "./types"
+import {
   listAvailablePlugins,
   findPlugin,
   clearGitMarketplaceCache,
@@ -79,6 +85,7 @@ interface PluginState {
     toolExecuteAfter?: (input: any, output: any) => Promise<void>
     event?: (params: { event: any }) => Promise<void>
   }
+  mcpServers: DiscoveredMCPServer[]
   config: ResolvedCrossstrainConfig
   logger: ConfigLogger
 }
@@ -152,6 +159,7 @@ export const CrosstrainPlugin: Plugin = async (ctx: PluginContext) => {
     watcher: null,
     tools: {},
     hookHandlers: {},
+    mcpServers: [],
     config,
     logger,
   }
@@ -218,6 +226,36 @@ export const CrosstrainPlugin: Plugin = async (ctx: PluginContext) => {
       logger.info("Built hook handlers from Claude settings")
     } catch (error) {
       logger.error("Error building hook handlers:", error)
+    }
+  }
+
+  // Load and sync MCP servers
+  if (config.loaders.mcp && summary.hasMCP) {
+    try {
+      const mcpOptions = {
+        filePrefix: config.filePrefix,
+        verbose: config.verbose,
+        enableByDefault: true,
+      }
+      const { discovered, converted } = await getAllMCPServers(
+        claudeDir,
+        homeDir,
+        mcpOptions
+      )
+      state.mcpServers = discovered
+
+      if (discovered.length > 0) {
+        // Sync to opencode.json
+        const { serverCount, configPath } = await syncMCPToOpenCode(
+          claudeDir,
+          homeDir,
+          openCodeDir,
+          mcpOptions
+        )
+        logger.info(`Synced ${serverCount} MCP servers to ${configPath}`)
+      }
+    } catch (error) {
+      logger.error("Error loading MCP servers:", error)
     }
   }
 
@@ -305,6 +343,36 @@ export const CrosstrainPlugin: Plugin = async (ctx: PluginContext) => {
               logger.info("Rebuilt hook handlers")
             } catch (error) {
               logger.error("Error rebuilding hook handlers:", error)
+            }
+          }
+        : undefined,
+      onMCPChange: config.loaders.mcp
+        ? async () => {
+            logger.info("MCP configuration changed, resyncing...")
+            try {
+              const mcpOptions = {
+                filePrefix: config.filePrefix,
+                verbose: config.verbose,
+                enableByDefault: true,
+              }
+              const { discovered } = await getAllMCPServers(
+                claudeDir,
+                homeDir,
+                mcpOptions
+              )
+              state.mcpServers = discovered
+
+              if (discovered.length > 0) {
+                const { serverCount, configPath } = await syncMCPToOpenCode(
+                  claudeDir,
+                  homeDir,
+                  openCodeDir,
+                  mcpOptions
+                )
+                logger.info(`Resynced ${serverCount} MCP servers to ${configPath}`)
+              }
+            } catch (error) {
+              logger.error("Error resyncing MCP servers:", error)
             }
           }
         : undefined,
@@ -461,6 +529,50 @@ export const CrosstrainPlugin: Plugin = async (ctx: PluginContext) => {
         }
       },
     }),
+
+    crosstrain_list_mcp: tool({
+      description: "List all MCP servers discovered from Claude Code configurations (.mcp.json files)",
+      args: {},
+      async execute() {
+        if (state.mcpServers.length === 0) {
+          return "No MCP servers found.\n\nTo add MCP servers, create a .mcp.json file in your project root or ~/.claude/.mcp.json\n\nExample format:\n```json\n{\n  \"mcpServers\": {\n    \"my-server\": {\n      \"command\": \"npx\",\n      \"args\": [\"-y\", \"@package/server\"],\n      \"env\": { \"API_KEY\": \"...\" }\n    }\n  }\n}\n```"
+        }
+
+        return getMCPSummary(state.mcpServers)
+      },
+    }),
+
+    crosstrain_sync_mcp: tool({
+      description: "Force re-sync MCP servers from Claude Code to OpenCode configuration",
+      args: {},
+      async execute() {
+        try {
+          const mcpOptions = {
+            filePrefix: config.filePrefix,
+            verbose: config.verbose,
+            enableByDefault: true,
+          }
+
+          const { discovered } = await getAllMCPServers(claudeDir, homeDir, mcpOptions)
+          state.mcpServers = discovered
+
+          if (discovered.length === 0) {
+            return "No MCP servers found to sync."
+          }
+
+          const { serverCount, configPath } = await syncMCPToOpenCode(
+            claudeDir,
+            homeDir,
+            openCodeDir,
+            mcpOptions
+          )
+
+          return `✅ Synced ${serverCount} MCP server(s) to ${configPath}\n\n${getMCPSummary(discovered)}\n\n**Note:** Restart OpenCode to load the updated MCP configuration.`
+        } catch (error) {
+          return `❌ Failed to sync MCP servers: ${error instanceof Error ? error.message : String(error)}`
+        }
+      },
+    }),
   }
 
   // Merge plugin management tools with skill tools
@@ -507,7 +619,7 @@ export const CrosstrainPlugin: Plugin = async (ctx: PluginContext) => {
  */
 export const crosstrainInfoTool = tool({
   description:
-    "Get information about Claude Code assets loaded by the crosstrain plugin. Use to see what skills, agents, commands, and hooks are available from Claude Code.",
+    "Get information about Claude Code assets loaded by the crosstrain plugin. Use to see what skills, agents, commands, hooks, and MCP servers are available from Claude Code.",
   args: {},
   async execute(args, ctx) {
     const homeDir = homedir()
@@ -541,9 +653,16 @@ export const crosstrainInfoTool = tool({
       info += "- **Hooks**: ❌ Not found\n"
     }
 
+    if (summary.hasMCP) {
+      info += "- **MCP Servers**: ✅ Synced to opencode.json\n"
+    } else {
+      info += "- **MCP Servers**: ❌ Not found\n"
+    }
+
     info += "\n## Source Locations\n\n"
     info += `- Project: ${claudeDir}\n`
     info += `- User: ${join(homeDir, ".claude")}\n`
+    info += `- Project .mcp.json: ${join(process.cwd(), ".mcp.json")}\n`
 
     return info
   },

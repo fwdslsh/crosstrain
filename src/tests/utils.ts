@@ -168,6 +168,34 @@ export class TestDirectory {
   }
 
   /**
+   * Create a .mcp.json file in the project root
+   */
+  async createMCPConfig(servers: Record<string, {
+    command: string
+    args?: string[]
+    env?: Record<string, string>
+  }>): Promise<string> {
+    const mcpPath = join(this.root, ".mcp.json")
+    await writeFile(mcpPath, JSON.stringify({ mcpServers: servers }, null, 2), "utf-8")
+    return mcpPath
+  }
+
+  /**
+   * Create a .mcp.json file in a plugin directory
+   */
+  async createPluginMCPConfig(pluginName: string, servers: Record<string, {
+    command: string
+    args?: string[]
+    env?: Record<string, string>
+  }>): Promise<string> {
+    const pluginDir = join(this.claudeDir, "plugins", pluginName)
+    await mkdir(pluginDir, { recursive: true })
+    const mcpPath = join(pluginDir, ".mcp.json")
+    await writeFile(mcpPath, JSON.stringify({ mcpServers: servers }, null, 2), "utf-8")
+    return mcpPath
+  }
+
+  /**
    * Get paths to generated OpenCode files
    */
   async getGeneratedFiles(): Promise<{

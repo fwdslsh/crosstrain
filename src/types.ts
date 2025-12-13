@@ -79,6 +79,12 @@ export interface CrosstrainConfig {
      * @default true
      */
     hooks?: boolean
+
+    /**
+     * Convert Claude MCP servers to OpenCode MCP configuration
+     * @default true
+     */
+    mcp?: boolean
   }
 
   /**
@@ -120,6 +126,7 @@ export interface ResolvedCrossstrainConfig {
     agents: boolean
     commands: boolean
     hooks: boolean
+    mcp: boolean
   }
   modelMappings: Record<string, string>
   toolMappings: Record<string, string>
@@ -143,6 +150,7 @@ export const DEFAULT_CONFIG: ResolvedCrossstrainConfig = {
     agents: true,
     commands: true,
     hooks: true,
+    mcp: true,
   },
   modelMappings: {},
   toolMappings: {},
@@ -495,4 +503,105 @@ export interface ParsedPlugin {
   hasCommands: boolean
   hasHooks: boolean
   hasMCP: boolean
+}
+
+// ========================================
+// MCP Server Types
+// ========================================
+
+/**
+ * Claude Code MCP server configuration (from .mcp.json)
+ */
+export interface ClaudeMCPServer {
+  /**
+   * Command to execute (executable name/path)
+   */
+  command: string
+
+  /**
+   * Command-line arguments
+   */
+  args?: string[]
+
+  /**
+   * Environment variables
+   */
+  env?: Record<string, string>
+}
+
+/**
+ * Claude Code .mcp.json file structure
+ */
+export interface ClaudeMCPConfig {
+  mcpServers: Record<string, ClaudeMCPServer>
+}
+
+/**
+ * OpenCode MCP server configuration (local)
+ */
+export interface OpenCodeMCPLocalServer {
+  type: "local"
+  command: string[]
+  environment?: Record<string, string>
+  enabled?: boolean
+  timeout?: number
+}
+
+/**
+ * OpenCode MCP server configuration (remote)
+ */
+export interface OpenCodeMCPRemoteServer {
+  type: "remote"
+  url: string
+  headers?: Record<string, string>
+  oauth?: {
+    clientId?: string
+    clientSecret?: string
+    scope?: string
+  } | false
+  enabled?: boolean
+  timeout?: number
+}
+
+/**
+ * OpenCode MCP server (union type)
+ */
+export type OpenCodeMCPServer = OpenCodeMCPLocalServer | OpenCodeMCPRemoteServer
+
+/**
+ * OpenCode MCP configuration (for opencode.json)
+ */
+export type OpenCodeMCPConfig = Record<string, OpenCodeMCPServer>
+
+/**
+ * Discovered MCP server with metadata
+ */
+export interface DiscoveredMCPServer {
+  name: string
+  server: ClaudeMCPServer
+  source: "project" | "user" | "plugin"
+  sourcePath: string
+}
+
+/**
+ * MCP loader options
+ */
+export interface MCPLoaderOptions {
+  /**
+   * Prefix to add to converted MCP server names
+   * @default "claude_"
+   */
+  filePrefix?: string
+
+  /**
+   * Enable verbose logging
+   * @default false
+   */
+  verbose?: boolean
+
+  /**
+   * Whether to enable converted servers by default
+   * @default true
+   */
+  enableByDefault?: boolean
 }
