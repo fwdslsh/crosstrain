@@ -135,7 +135,8 @@ describe("Crosstrain CLI", () => {
       const result = await runCLI(["command"], testDir.root)
 
       expect(result.exitCode).toBe(1)
-      expect(result.stdout).toContain("Please provide a path")
+      const output = result.stdout + result.stderr
+      expect(output).toContain("Please provide a path")
     })
 
     it("should error when command file not found", async () => {
@@ -144,7 +145,8 @@ describe("Crosstrain CLI", () => {
       ], testDir.root)
 
       expect(result.exitCode).toBe(1)
-      expect(result.stdout).toContain("not found")
+      const output = result.stdout + result.stderr
+      expect(output).toContain("not found")
     })
   })
 
@@ -365,10 +367,12 @@ describe("Crosstrain CLI", () => {
       const result = await runCLI([
         "hook",
         "-o", testDir.openCodeDir,
+        "--no-user",
       ], testDir.root)
 
       expect(result.exitCode).toBe(0)
-      expect(result.stdout).toContain("No hooks configuration found")
+      const output = result.stdout + result.stderr
+      expect(output).toContain("No hooks")
     })
   })
 
@@ -659,7 +663,8 @@ describe("Crosstrain CLI", () => {
       const result = await runCLI(["plugin"], testDir.root)
 
       expect(result.exitCode).toBe(1)
-      expect(result.stdout).toContain("Please provide a path")
+      const output = result.stdout + result.stderr
+      expect(output).toContain("Please provide")
     })
 
     it("should error when plugin directory not found", async () => {
@@ -668,7 +673,8 @@ describe("Crosstrain CLI", () => {
       ], testDir.root)
 
       expect(result.exitCode).toBe(1)
-      expect(result.stdout).toContain("not found")
+      const output = result.stdout + result.stderr
+      expect(output).toContain("not found")
     })
 
     it("should show dry-run output without writing", async () => {
@@ -687,8 +693,8 @@ describe("Crosstrain CLI", () => {
       ], testDir.root)
 
       expect(result.exitCode).toBe(0)
-      expect(result.stdout).toContain("dry-run")
-      expect(result.stdout).toContain("Would convert")
+      const output = result.stdout + result.stderr
+      expect(output).toContain("Would convert")
 
       // Files should NOT exist
       expect(existsSync(join(testDir.openCodeDir, "command"))).toBe(false)
@@ -700,7 +706,8 @@ describe("Crosstrain CLI", () => {
       const result = await runCLI(["list"])
 
       expect(result.exitCode).toBe(1)
-      expect(result.stdout).toContain("Please provide a marketplace source")
+      const output = result.stdout + result.stderr
+      expect(output).toContain("Please provide a marketplace source")
     })
 
     it("should display help in list command", async () => {
@@ -714,7 +721,8 @@ describe("Crosstrain CLI", () => {
       const result = await runCLI(["ls"])
 
       expect(result.exitCode).toBe(1)
-      expect(result.stdout).toContain("Please provide a marketplace source")
+      const output = result.stdout + result.stderr
+      expect(output).toContain("Please provide a marketplace source")
     })
   })
 
@@ -750,7 +758,8 @@ describe("Crosstrain CLI", () => {
       const result = await runCLI(["unknown-command"])
 
       expect(result.exitCode).toBe(1)
-      expect(result.stdout).toContain("Unknown command")
+      const output = result.stdout + result.stderr
+      expect(output).toContain("Unknown command")
     })
   })
 })

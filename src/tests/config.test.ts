@@ -365,64 +365,22 @@ describe("Configuration System", () => {
       expect(result).toEqual({})
     })
 
-    it("should use custom filePrefix", async () => {
-      // Create fixtures
-      await mkdir(join(testDir, ".claude", "agents"), { recursive: true })
-      await mkdir(join(testDir, ".opencode"), { recursive: true })
-      await writeFile(
-        join(testDir, ".claude", "agents", "test.md"),
-        "---\ndescription: Test agent\n---\nTest prompt"
-      )
-
+    it("should expose CLI wrapper tools when enabled", async () => {
       const { CrosstrainPlugin } = await import("../index")
 
-      await CrosstrainPlugin({
+      const result = await CrosstrainPlugin({
         directory: testDir,
         crosstrain: {
-          filePrefix: "custom_",
           loadUserAssets: false,
         },
       })
 
-      // Check if file was created with custom prefix
-      const agentPath = join(testDir, ".opencode", "agent", "custom_test.md")
-      expect(existsSync(agentPath)).toBe(true)
-    })
-
-    it("should disable specific loaders", async () => {
-      // Create fixtures
-      await mkdir(join(testDir, ".claude", "agents"), { recursive: true })
-      await mkdir(join(testDir, ".claude", "commands"), { recursive: true })
-      await mkdir(join(testDir, ".opencode"), { recursive: true })
-      await writeFile(
-        join(testDir, ".claude", "agents", "test.md"),
-        "---\ndescription: Test agent\n---\nTest prompt"
-      )
-      await writeFile(
-        join(testDir, ".claude", "commands", "test.md"),
-        "---\ndescription: Test command\n---\nTest template"
-      )
-
-      const { CrosstrainPlugin } = await import("../index")
-
-      await CrosstrainPlugin({
-        directory: testDir,
-        crosstrain: {
-          loaders: {
-            agents: false,
-            commands: true,
-          },
-          loadUserAssets: false,
-        },
-      })
-
-      // Agents should not be created
-      const agentPath = join(testDir, ".opencode", "agent", "claude_test.md")
-      expect(existsSync(agentPath)).toBe(false)
-
-      // Commands should be created
-      const commandPath = join(testDir, ".opencode", "command", "claude_test.md")
-      expect(existsSync(commandPath)).toBe(true)
+      // Plugin should expose CLI wrapper tools
+      expect(result.tool).toBeDefined()
+      const toolNames = Object.keys(result.tool || {})
+      expect(toolNames).toContain("crosstrain")
+      expect(toolNames).toContain("crosstrain_convert_all")
+      expect(toolNames).toContain("crosstrain_help")
     })
   })
 })

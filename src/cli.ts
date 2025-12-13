@@ -551,7 +551,8 @@ async function handleAgent(path: string | undefined, opts: CLIOptions): Promise<
 async function handleHook(opts: CLIOptions): Promise<void> {
   heading("Claude Code Hooks Configuration")
 
-  const hooksConfig = await loadClaudeHooksConfig(opts.claudeDir, opts.homeDir)
+  const homeDir = opts.loadUserAssets ? opts.homeDir : ""
+  const hooksConfig = await loadClaudeHooksConfig(opts.claudeDir, homeDir)
 
   if (!hooksConfig) {
     warn("No hooks configuration found")

@@ -1,6 +1,6 @@
 # Crosstrain
 
-OpenCode plugin that loads Claude Code extensions into OpenCode.
+CLI tool and OpenCode plugin for converting Claude Code extensions to OpenCode format.
 
 ## What It Does
 
@@ -8,7 +8,7 @@ Crosstrain bridges Claude Code's extension ecosystem to OpenCode:
 
 | Claude Code | → | OpenCode |
 |-------------|---|----------|
-| Skills (`.claude/skills/`) | → | Custom tools |
+| Skills (`.claude/skills/`) | → | Plugin tools |
 | Agents (`.claude/agents/`) | → | Agents (`.opencode/agent/`) |
 | Commands (`.claude/commands/`) | → | Commands (`.opencode/command/`) |
 | Hooks (`settings.json`) | → | Event handlers |
@@ -16,19 +16,85 @@ Crosstrain bridges Claude Code's extension ecosystem to OpenCode:
 
 ## Installation
 
-### Quick Install (Project)
+### Quick Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/fwdslsh/crosstrain/main/install.sh | bash
+# Install globally with bun
+bun install -g crosstrain
+
+# Or run directly
+bunx crosstrain --help
 ```
 
-### Global Install (User-wide)
+### From Source
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/fwdslsh/crosstrain/main/install.sh | bash -s -- global
+git clone https://github.com/fwdslsh/crosstrain.git
+cd crosstrain
+bun install
+bun link  # Makes 'crosstrain' available globally
 ```
 
-### Manual Install
+## CLI Usage
+
+```bash
+crosstrain <command> [path] [options]
+```
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `command <path>` | Convert a Claude Code command (.md file) |
+| `skill <path>` | Convert a skill to OpenCode plugin tool |
+| `agent <path>` | Convert an agent to OpenCode format |
+| `hook` | Display Claude Code hooks configuration |
+| `mcp [path]` | Convert MCP servers to OpenCode config |
+| `plugin <source>` | Convert a full plugin (local or remote) |
+| `list <source>` | List plugins in a marketplace |
+| `all` | Convert all Claude Code assets in project |
+| `init` | Initialize a new skills plugin |
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `-o, --output-dir <path>` | Output directory (default: `.opencode`) |
+| `-p, --prefix <prefix>` | File prefix for generated files (default: `claude_`) |
+| `-v, --verbose` | Enable verbose output |
+| `--dry-run` | Preview changes without writing files |
+| `--no-user` | Skip user-level assets from `~/.claude` |
+
+### Examples
+
+```bash
+# Convert all assets in current project
+crosstrain all
+
+# Preview changes without writing
+crosstrain all --dry-run
+
+# Convert a single command
+crosstrain command .claude/commands/create-feature.md
+
+# Convert a skill to a plugin tool
+crosstrain skill .claude/skills/pdf-extractor
+
+# Convert a plugin from GitHub
+crosstrain plugin anthropics/claude-plugins/code-review
+
+# Browse a marketplace
+crosstrain list anthropics/claude-plugins
+
+# Convert a specific version
+crosstrain plugin org/repo/plugin@v1.0.0
+```
+
+## OpenCode Plugin
+
+Crosstrain also works as an OpenCode plugin, exposing tools that let the AI agent assist with conversion.
+
+### Plugin Installation
 
 ```bash
 # Clone to your plugin directory
@@ -37,85 +103,47 @@ cd .opencode/plugin/crosstrain
 bun install
 ```
 
-## Configuration
+### Plugin Tools
 
-Settings are in the plugin directory at `.opencode/plugin/crosstrain/settings.json`:
+When installed as a plugin, the AI agent can use these tools:
+
+- `crosstrain` - Run any CLI command
+- `crosstrain_convert_all` - Convert all assets
+- `crosstrain_convert_plugin` - Convert a plugin
+- `crosstrain_list_marketplace` - Browse marketplaces
+- `crosstrain_convert_command` - Convert single command
+- `crosstrain_convert_skill` - Convert single skill
+- `crosstrain_convert_agent` - Convert single agent
+- `crosstrain_convert_mcp` - Convert MCP servers
+- `crosstrain_show_hooks` - Display hooks config
+- `crosstrain_init` - Initialize skills plugin
+
+### Plugin Configuration
+
+Optional settings in `.opencode/plugin/crosstrain/settings.json`:
 
 ```json
 {
   "enabled": true,
-  "claudeDir": ".claude",
-  "openCodeDir": ".opencode",
-  "loadUserAssets": true,
-  "loadUserSettings": true,
-  "watch": true,
-  "filePrefix": "claude_",
   "verbose": false
 }
 ```
 
-All settings are optional. The plugin works with sensible defaults.
+## Asset Conversion Details
 
-### Settings Reference
+### Skills → Plugin Tools
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `enabled` | `true` | Enable/disable the plugin |
-| `claudeDir` | `.claude` | Claude Code assets directory |
-| `openCodeDir` | `.opencode` | OpenCode assets directory |
-| `loadUserAssets` | `true` | Load from `~/.claude` |
-| `loadUserSettings` | `true` | Load marketplace/plugin settings from `~/.claude/settings.json` |
-| `watch` | `true` | Watch for file changes |
-| `filePrefix` | `claude_` | Prefix for generated files |
-| `verbose` | `false` | Enable verbose logging |
-| `loaders` | all `true` | Enable/disable loaders: `skills`, `agents`, `commands`, `hooks`, `mcp` |
+Claude Code skills become OpenCode plugin tools:
 
-### Environment Variables
-
-Override settings with environment variables:
-
-```bash
-CROSSTRAIN_ENABLED=false      # Disable plugin
-CROSSTRAIN_VERBOSE=true       # Enable logging
-CROSSTRAIN_WATCH=false        # Disable file watching
-CROSSTRAIN_LOAD_USER_ASSETS=false
-CROSSTRAIN_LOAD_USER_SETTINGS=false
 ```
-
-## Usage
-
-### Skills → Tools
-
-Place skills in `.claude/skills/<name>/SKILL.md`:
-
-```markdown
----
-name: commit-helper
-description: Generates commit messages from diffs
----
-
-# Instructions
-1. Run `git diff --staged`
-2. Generate a commit message
+.claude/skills/commit-helper/SKILL.md → .opencode/plugin/crosstrain-skills/tools/skill_commit_helper.ts
 ```
-
-Becomes tool: `skill_commit_helper`
 
 ### Agents → Agents
 
-Place agents in `.claude/agents/<name>.md`:
-
-```markdown
----
-description: Code review agent
-model: sonnet
-tools: Read, Grep, Glob
----
-
-Review code for quality and suggest improvements.
 ```
-
-Becomes: `.opencode/agent/claude_<name>.md`
+.claude/agents/code-review.md → .opencode/agent/claude_code-review.md
+```
 
 **Model mapping:**
 - `sonnet` → `anthropic/claude-sonnet-4-20250514`
@@ -124,34 +152,11 @@ Becomes: `.opencode/agent/claude_<name>.md`
 
 ### Commands → Commands
 
-Place commands in `.claude/commands/<name>.md`:
-
-```markdown
----
-description: Run tests
----
-
-Run the test suite: `$ARGUMENTS`
 ```
-
-Becomes: `.opencode/command/claude_<name>.md`
+.claude/commands/run-tests.md → .opencode/command/claude_run-tests.md
+```
 
 ### Hooks → Event Handlers
-
-Define hooks in `.claude/settings.json`:
-
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [{ "type": "command", "command": "echo 'Pre-bash'" }]
-      }
-    ]
-  }
-}
-```
 
 **Event mapping:**
 - `PreToolUse` → `tool.execute.before`
@@ -159,66 +164,50 @@ Define hooks in `.claude/settings.json`:
 - `SessionStart` → `session.created`
 - `SessionEnd` → `session.idle`
 
-### Marketplace Plugins
-
-Crosstrain reads marketplace and plugin settings from Claude Code's `settings.json`:
-
-```json
-{
-  "enabledPlugins": {
-    "my-plugin@my-marketplace": true
-  },
-  "extraKnownMarketplaces": {
-    "my-marketplace": {
-      "source": { "source": "github", "repo": "org/plugins" }
-    }
-  }
-}
-```
-
-**Available tools:**
-- `crosstrain_list_marketplaces` - List configured marketplaces
-- `crosstrain_list_installed` - Show installed plugins
-- `crosstrain_install_plugin` - Install a plugin
-- `crosstrain_uninstall_plugin` - Remove a plugin
-- `crosstrain_clear_cache` - Clear marketplace cache
-
-## Directory Structure
+### MCP Servers → OpenCode Config
 
 ```
-project/
-├── .claude/                      # Claude Code assets
-│   ├── skills/
-│   │   └── my-skill/SKILL.md
-│   ├── agents/
-│   │   └── my-agent.md
-│   ├── commands/
-│   │   └── my-command.md
-│   └── settings.json             # Hooks and plugin settings
-│
-└── .opencode/                    # OpenCode assets
-    ├── agent/
-    │   └── claude_my-agent.md    # Generated
-    ├── command/
-    │   └── claude_my-command.md  # Generated
-    └── plugin/
-        └── crosstrain/           # This plugin
-            ├── index.ts          # Entry point
-            ├── settings.json     # Plugin configuration
-            ├── settings.schema.json
-            └── src/              # Implementation
+.mcp.json → opencode.json (mcp section)
 ```
+
+## Remote Plugins
+
+Convert plugins directly from GitHub:
+
+```bash
+# GitHub shorthand
+crosstrain plugin org/repo/plugin-name
+
+# With version tag
+crosstrain plugin org/repo/plugin-name@v1.0.0
+
+# Full URL
+crosstrain plugin https://github.com/org/repo
+```
+
+## Browsing Marketplaces
+
+List available plugins in a Claude Code marketplace:
+
+```bash
+crosstrain list anthropics/claude-plugins
+```
+
+Output shows plugin names, descriptions, and the command to convert each one.
 
 ## Development
 
 ```bash
-git clone https://github.com/fwdslsh/crosstrain.git
-cd crosstrain
-bun install
-bun test              # Run tests
-bun run typecheck     # Type check
-bun run build         # Build
+bun install          # Install dependencies
+bun test             # Run tests
+bun run typecheck    # Type check
+bun run build        # Build
 ```
+
+## Documentation
+
+- [CLI Reference](docs/cli.md) - Full CLI documentation
+- [CLAUDE.md](CLAUDE.md) - Architecture and development guide
 
 ## License
 
