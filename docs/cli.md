@@ -354,6 +354,57 @@ crosstrain init -o ./custom-opencode
 
 ---
 
+### `settings`
+
+Import Claude Code settings to OpenCode configuration.
+
+```bash
+crosstrain settings [options]
+```
+
+**Reads from (in order):**
+1. `~/.claude/settings.json` - User settings
+2. `~/.claude/settings.local.json` - User local settings
+3. `.claude/settings.json` - Project settings
+4. `.claude/settings.local.json` - Project local settings
+
+**Converts to:** `opencode.json` in project root
+
+**What it converts:**
+- `model` → OpenCode model path (e.g., `anthropic/claude-sonnet-4-5`)
+- `permissions.defaultMode` → Permission presets
+- `permissions.allow/deny` → Tool permissions
+
+**Permission mode mapping:**
+| Claude Code | OpenCode |
+|-------------|----------|
+| `acceptEdits` | `{ edit: "allow" }` |
+| `bypassPermissions` | `{ edit: "allow", bash: "allow" }` |
+| `plan` | `{ edit: "deny", bash: "deny" }` |
+
+**Not converted** (no direct equivalent):
+- `hooks` - Use OpenCode plugins/events instead
+- `env` - Set environment variables before running OpenCode
+- `companyAnnouncements` - Not supported
+- `sandbox` - OpenCode uses different sandboxing
+
+**Example:**
+```bash
+# Import settings
+crosstrain settings
+
+# Preview changes first
+crosstrain settings --dry-run
+
+# Show detailed settings discovery
+crosstrain settings --verbose
+
+# Skip user-level settings
+crosstrain settings --no-user
+```
+
+---
+
 ## Remote Sources
 
 The `plugin` and `list` commands support remote sources:
@@ -419,6 +470,18 @@ crosstrain all
 ### Custom output directory
 ```bash
 crosstrain all -o ./my-opencode-dir -p "my_"
+```
+
+### Import settings from Claude Code
+```bash
+# Preview what settings will be imported
+crosstrain settings --dry-run --verbose
+
+# Import settings to opencode.json
+crosstrain settings
+
+# Full migration: settings + all assets
+crosstrain settings && crosstrain all
 ```
 
 ---

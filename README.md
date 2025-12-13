@@ -54,6 +54,7 @@ crosstrain <command> [path] [options]
 | `list <source>` | List plugins in a marketplace |
 | `all` | Convert all Claude Code assets in project |
 | `init` | Initialize a new skills plugin |
+| `settings` | Import Claude Code settings to opencode.json |
 
 ### Options
 
@@ -117,6 +118,7 @@ When installed as a plugin, the AI agent can use these tools:
 - `crosstrain_convert_mcp` - Convert MCP servers
 - `crosstrain_show_hooks` - Display hooks config
 - `crosstrain_init` - Initialize skills plugin
+- `crosstrain_import_settings` - Import Claude Code settings to opencode.json
 
 ### Plugin Configuration
 
@@ -169,6 +171,29 @@ Claude Code skills become OpenCode plugin tools:
 ```
 .mcp.json → opencode.json (mcp section)
 ```
+
+### Settings → opencode.json
+
+Claude Code settings are converted to OpenCode configuration:
+
+```bash
+# Import settings
+crosstrain settings
+
+# Preview first
+crosstrain settings --dry-run
+```
+
+**Permission mode mapping:**
+- `acceptEdits` → `{ edit: "allow" }`
+- `bypassPermissions` → `{ edit: "allow", bash: "allow" }`
+- `plan` → `{ edit: "deny", bash: "deny" }`
+
+**Not converted** (no direct equivalent):
+- `hooks` - Use OpenCode plugins instead
+- `env` - Set environment variables before running OpenCode
+- `companyAnnouncements` - Not supported
+- `sandbox` - OpenCode uses different sandboxing
 
 ## Remote Plugins
 

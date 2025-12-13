@@ -141,6 +141,7 @@ Available commands:
 - list <source>   - List plugins in a marketplace (org/repo or URL)
 - all             - Convert all Claude Code assets in current project
 - init            - Initialize a new OpenCode plugin for skills
+- settings        - Import Claude Code settings to opencode.json
 
 Options:
 - --dry-run       - Show what would be done without writing files
@@ -153,7 +154,8 @@ Examples:
 - crosstrain command .claude/commands/create-feature.md
 - crosstrain plugin anthropics/claude-plugins/code-review
 - crosstrain list anthropics/claude-plugins
-- crosstrain all --dry-run`,
+- crosstrain all --dry-run
+- crosstrain settings --dry-run`,
       args: {
         command: toolSchema.string().describe("The crosstrain command and arguments (e.g., 'all --dry-run', 'plugin ./my-plugin', 'list org/repo')"),
       },
@@ -356,6 +358,29 @@ Examples:
           return result.output || "Plugin initialized successfully."
         } else {
           return `Plugin initialization failed:\n\n${result.error || result.output}`
+        }
+      },
+    }),
+
+    crosstrain_import_settings: tool({
+      description: "Import Claude Code settings to OpenCode configuration. Reads settings from .claude/settings.json and ~/.claude/settings.json and converts to opencode.json format.",
+      args: {
+        dryRun: toolSchema.boolean().optional().describe("Preview changes without writing files"),
+        verbose: toolSchema.boolean().optional().describe("Show detailed settings discovery"),
+        noUser: toolSchema.boolean().optional().describe("Skip user-level settings from ~/.claude"),
+      },
+      async execute(args: { dryRun?: boolean; verbose?: boolean; noUser?: boolean }) {
+        const cmdArgs = ["settings"]
+        if (args.dryRun) cmdArgs.push("--dry-run")
+        if (args.verbose) cmdArgs.push("--verbose")
+        if (args.noUser) cmdArgs.push("--no-user")
+
+        const result = runCLI(cmdArgs, directory, config.verbose)
+
+        if (result.success) {
+          return result.output || "Settings imported successfully."
+        } else {
+          return `Settings import failed:\n\n${result.error || result.output}`
         }
       },
     }),

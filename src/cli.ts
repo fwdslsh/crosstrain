@@ -69,6 +69,14 @@ import {
   clearGitMarketplaceCache,
 } from "./loaders/marketplace"
 import {
+  discoverClaudeSettings,
+  convertClaudeSettingsToOpenCode,
+  loadOpenCodeConfig,
+  writeOpenCodeConfig,
+  mergeOpenCodeConfigs,
+  formatSettingsForDisplay,
+} from "./loaders/settings-converter"
+import {
   parseMarkdownWithFrontmatter,
   readTextFile,
   extractNameFromPath,
@@ -162,6 +170,7 @@ ${colors.bold}COMMANDS:${colors.reset}
   ${colors.cyan}all${colors.reset}               Convert all Claude Code assets in current project
   ${colors.cyan}sync${colors.reset}              Alias for 'all'
   ${colors.cyan}init${colors.reset}              Initialize a new OpenCode plugin for skills
+  ${colors.cyan}settings${colors.reset}          Import Claude Code settings to OpenCode config
 
 ${colors.bold}OPTIONS:${colors.reset}
   -o, --output-dir <path>  Output directory (default: .opencode)
@@ -1453,6 +1462,133 @@ export default CrosstrainSkillsPlugin
 }
 
 // ========================================
+// Settings Handler
+// ========================================
+
+async function handleSettings(opts: CLIOptions): Promise<void> {
+  heading("Claude Code Settings Import")
+
+  // Discover all Claude Code settings
+  const settings = await discoverClaudeSettings(opts.claudeDir, opts.loadUserAssets)
+
+  // Display discovered settings
+  if (opts.verbose) {
+    if (settings.userSettings) {
+      log(formatSettingsForDisplay(settings.userSettings, "User Settings (~/.claude/settings.json)"))
+    }
+    if (settings.userLocalSettings) {
+      log(formatSettingsForDisplay(settings.userLocalSettings, "User Local Settings (~/.claude/settings.local.json)"))
+    }
+    if (settings.projectSettings) {
+      log(formatSettingsForDisplay(settings.projectSettings, "Project Settings (.claude/settings.json)"))
+    }
+    if (settings.projectLocalSettings) {
+      log(formatSettingsForDisplay(settings.projectLocalSettings, "Project Local Settings (.claude/settings.local.json)"))
+    }
+    log("")
+  }
+
+  // Show merged settings summary
+  log(`\n${colors.bold}Merged Claude Code Settings${colors.reset}`)
+  log("─".repeat(40))
+
+  const merged = settings.merged
+
+  if (merged.model) {
+    log(`  Model: ${merged.model}`)
+  }
+
+  if (merged.permissions) {
+    const permKeys = Object.keys(merged.permissions).filter(k =>
+      merged.permissions[k] && (Array.isArray(merged.permissions[k]) ? merged.permissions[k].length > 0 : true)
+    )
+    if (permKeys.length > 0) {
+      log(`  Permissions: ${permKeys.join(", ")}`)
+      if (merged.permissions.defaultMode) {
+        log(`    Default Mode: ${merged.permissions.defaultMode}`)
+      }
+      if (merged.permissions.allow?.length > 0) {
+        log(`    Allow: ${merged.permissions.allow.length} rule(s)`)
+      }
+      if (merged.permissions.deny?.length > 0) {
+        log(`    Deny: ${merged.permissions.deny.length} rule(s)`)
+      }
+    }
+  }
+
+  if (merged.hooks) {
+    const hookTypes = Object.keys(merged.hooks).filter(k => merged.hooks[k]?.length > 0)
+    if (hookTypes.length > 0) {
+      log(`  Hooks: ${hookTypes.join(", ")}`)
+    }
+  }
+
+  if (merged.enabledPlugins && Object.keys(merged.enabledPlugins).length > 0) {
+    const enabledCount = Object.values(merged.enabledPlugins).filter(v => v).length
+    log(`  Enabled Plugins: ${enabledCount}`)
+  }
+
+  if (merged.extraKnownMarketplaces && Object.keys(merged.extraKnownMarketplaces).length > 0) {
+    log(`  Marketplaces: ${Object.keys(merged.extraKnownMarketplaces).join(", ")}`)
+  }
+
+  if (merged.env && Object.keys(merged.env).length > 0) {
+    log(`  Environment Variables: ${Object.keys(merged.env).length}`)
+  }
+
+  // Convert to OpenCode format
+  log(`\n${colors.bold}Converting to OpenCode Configuration${colors.reset}`)
+  log("─".repeat(40))
+
+  const openCodeConfig = convertClaudeSettingsToOpenCode(merged)
+
+  // Load existing OpenCode config
+  const existingConfig = await loadOpenCodeConfig(opts.outputDir)
+  if (existingConfig) {
+    info("Found existing opencode.json - will merge settings")
+  }
+
+  // Merge configurations
+  const finalConfig = mergeOpenCodeConfigs(existingConfig, openCodeConfig)
+
+  // Display what will be written
+  if (finalConfig.model) {
+    log(`  Model: ${finalConfig.model}`)
+  }
+
+  if (finalConfig.permission && Object.keys(finalConfig.permission).length > 0) {
+    log(`  Permissions:`)
+    for (const [tool, perm] of Object.entries(finalConfig.permission)) {
+      log(`    ${tool}: ${perm}`)
+    }
+  }
+
+  // Handle dry-run or write
+  const projectRoot = resolve(opts.outputDir, "..")
+  const configPath = join(projectRoot, "opencode.json")
+
+  if (opts.dryRun) {
+    log("")
+    info("[dry-run] Would write to: " + configPath)
+    log("")
+    log("Generated OpenCode configuration:")
+    log(JSON.stringify(finalConfig, null, 2))
+  } else {
+    await writeOpenCodeConfig(opts.outputDir, finalConfig)
+    log("")
+    success(`Wrote: ${configPath}`)
+  }
+
+  // Show what wasn't converted
+  log("")
+  info("Note: Some Claude Code settings don't have direct OpenCode equivalents:")
+  log("  - hooks → Use OpenCode plugins instead")
+  log("  - env → Set environment variables before running OpenCode")
+  log("  - companyAnnouncements → Not supported")
+  log("  - sandbox → OpenCode uses different sandboxing")
+}
+
+// ========================================
 // Main
 // ========================================
 
@@ -1509,6 +1645,11 @@ async function main(): Promise<void> {
 
     case "init":
       await handleInit(opts)
+      break
+
+    case "settings":
+    case "config":
+      await handleSettings(opts)
       break
 
     default:

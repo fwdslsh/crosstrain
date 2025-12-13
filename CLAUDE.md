@@ -37,6 +37,7 @@ crosstrain <command> [path] [options]
 - `list <source>` - Browse marketplace plugins
 - `all` / `sync` - Convert all assets in current project
 - `init` - Initialize a skills plugin
+- `settings` - Import Claude Code settings to opencode.json
 
 **Options:**
 - `-o, --output-dir <path>` - Output directory (default: .opencode)
@@ -63,6 +64,7 @@ The OpenCode plugin wraps the CLI, exposing tools that allow the AI agent to:
 - `crosstrain_convert_mcp` - Convert MCP servers
 - `crosstrain_show_hooks` - Display hooks config
 - `crosstrain_init` - Initialize skills plugin
+- `crosstrain_import_settings` - Import Claude Code settings to opencode.json
 - `crosstrain_help` - Show CLI help
 
 ### Loader Pattern (`src/loaders/`)
