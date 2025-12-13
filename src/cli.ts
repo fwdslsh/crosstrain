@@ -77,6 +77,18 @@ import {
   formatSettingsForDisplay,
 } from "./loaders/settings-converter"
 import {
+  loadCrosstrainerConfig,
+  shouldIncludeAsset,
+  applyModelMapping,
+  applyToolMapping,
+  getEffectivePrefix,
+  getEffectivePluginName,
+  mergeWithDefaults,
+  type CrosstrainerConfig,
+  type ConversionContext,
+  type LoadedCrosstrainerConfig,
+} from "./loaders/crosstrainer-config"
+import {
   parseMarkdownWithFrontmatter,
   readTextFile,
   extractNameFromPath,
@@ -1039,11 +1051,54 @@ async function handlePlugin(source: string | undefined, opts: CLIOptions): Promi
     }
   }
 
+  // Load crosstrainer config if present
+  let crosstrainerConfig: CrosstrainerConfig | null = null
+  let crosstrainerInfo: LoadedCrosstrainerConfig | null = null
+  try {
+    crosstrainerInfo = await loadCrosstrainerConfig(pluginPath)
+    if (crosstrainerInfo) {
+      crosstrainerConfig = crosstrainerInfo.config
+    }
+  } catch (err) {
+    warn(`Failed to load crosstrainer config: ${(err as Error).message}`)
+  }
+
+  // Apply crosstrainer config overrides
+  if (crosstrainerConfig) {
+    pluginName = getEffectivePluginName(pluginName, crosstrainerConfig)
+  }
+
   heading(`Converting Plugin: ${pluginName}`)
   info(`Source: ${pluginPath}`)
 
+  if (crosstrainerInfo) {
+    info(`Crosstrainer config: ${basename(crosstrainerInfo.filePath)} (${crosstrainerInfo.fileType})`)
+  }
+
   // Use plugin name as prefix for generated files
-  const pluginPrefix = `${opts.prefix}${pluginName.replace(/[^a-zA-Z0-9]/g, "_")}_`
+  let pluginPrefix = `${opts.prefix}${pluginName.replace(/[^a-zA-Z0-9]/g, "_")}_`
+  if (crosstrainerConfig) {
+    pluginPrefix = getEffectivePrefix(pluginPrefix, crosstrainerConfig)
+  }
+
+  // Create conversion context for hooks
+  const conversionContext: ConversionContext = {
+    pluginName,
+    pluginDir: pluginPath,
+    outputDir: opts.outputDir,
+    prefix: pluginPrefix,
+    dryRun: opts.dryRun,
+    verbose: opts.verbose,
+    config: crosstrainerConfig || {},
+  }
+
+  // Track converted files for post-conversion hook
+  const convertedFiles = {
+    agents: [] as string[],
+    commands: [] as string[],
+    skills: [] as string[],
+    mcp: [] as string[],
+  }
 
   let totalConverted = 0
 
@@ -1052,7 +1107,23 @@ async function handlePlugin(source: string | undefined, opts: CLIOptions): Promi
   const commandsDir = join(pluginPath, "commands")
   if (existsSync(commandsDir)) {
     // Discover commands directly from the plugin's commands directory
-    const commands = await discoverCommands(pluginPath, "")
+    let commands = await discoverCommands(pluginPath, "")
+
+    // Apply crosstrainer filters
+    commands = commands.filter(cmd => shouldIncludeAsset(cmd.name, crosstrainerConfig?.commands))
+
+    // Apply crosstrainer transforms
+    if (crosstrainerConfig?.transformCommand) {
+      const transformed: typeof commands = []
+      for (const cmd of commands) {
+        const result = await crosstrainerConfig.transformCommand(cmd, conversionContext)
+        if (result) {
+          transformed.push(result)
+        }
+      }
+      commands = transformed
+    }
+
     if (commands.length === 0) {
       log("  No commands found")
     } else {
@@ -1065,6 +1136,9 @@ async function handlePlugin(source: string | undefined, opts: CLIOptions): Promi
           filePrefix: pluginPrefix,
           verbose: opts.verbose,
         })
+        for (const cmd of commands) {
+          convertedFiles.commands.push(`${pluginPrefix}${cmd.name}.md`)
+        }
         success(`Converted ${commands.length} command(s)`)
       }
       totalConverted += commands.length
@@ -1077,7 +1151,39 @@ async function handlePlugin(source: string | undefined, opts: CLIOptions): Promi
   log(`\n${colors.bold}Agents${colors.reset}`)
   const agentsDir = join(pluginPath, "agents")
   if (existsSync(agentsDir)) {
-    const agents = await discoverAgents(pluginPath, "")
+    let agents = await discoverAgents(pluginPath, "")
+
+    // Apply crosstrainer filters
+    agents = agents.filter(agent => shouldIncludeAsset(agent.name, crosstrainerConfig?.agents))
+
+    // Apply model mapping from crosstrainer config
+    if (crosstrainerConfig?.models) {
+      agents = agents.map(agent => ({
+        ...agent,
+        model: applyModelMapping(agent.model, crosstrainerConfig!.models) || agent.model,
+      }))
+    }
+
+    // Apply default model from crosstrainer config
+    if (crosstrainerConfig?.agents?.defaultModel) {
+      agents = agents.map(agent => ({
+        ...agent,
+        model: agent.model || crosstrainerConfig!.agents!.defaultModel,
+      }))
+    }
+
+    // Apply crosstrainer transforms
+    if (crosstrainerConfig?.transformAgent) {
+      const transformed: typeof agents = []
+      for (const agent of agents) {
+        const result = await crosstrainerConfig.transformAgent(agent, conversionContext)
+        if (result) {
+          transformed.push(result)
+        }
+      }
+      agents = transformed
+    }
+
     if (agents.length === 0) {
       log("  No agents found")
     } else {
@@ -1090,6 +1196,9 @@ async function handlePlugin(source: string | undefined, opts: CLIOptions): Promi
           filePrefix: pluginPrefix,
           verbose: opts.verbose,
         })
+        for (const agent of agents) {
+          convertedFiles.agents.push(`${pluginPrefix}${agent.name}.md`)
+        }
         success(`Converted ${agents.length} agent(s)`)
       }
       totalConverted += agents.length
@@ -1102,7 +1211,23 @@ async function handlePlugin(source: string | undefined, opts: CLIOptions): Promi
   log(`\n${colors.bold}Skills${colors.reset}`)
   const skillsDir = join(pluginPath, "skills")
   if (existsSync(skillsDir)) {
-    const skills = await discoverSkills(pluginPath, "")
+    let skills = await discoverSkills(pluginPath, "")
+
+    // Apply crosstrainer filters
+    skills = skills.filter(skill => shouldIncludeAsset(skill.name, crosstrainerConfig?.skills))
+
+    // Apply crosstrainer transforms
+    if (crosstrainerConfig?.transformSkill) {
+      const transformed: typeof skills = []
+      for (const skill of skills) {
+        const result = await crosstrainerConfig.transformSkill(skill, conversionContext)
+        if (result) {
+          transformed.push(result)
+        }
+      }
+      skills = transformed
+    }
+
     if (skills.length === 0) {
       log("  No skills found")
     } else {
@@ -1127,8 +1252,17 @@ async function handlePlugin(source: string | undefined, opts: CLIOptions): Promi
           pluginSkills.push(namespacedSkill)
 
           const toolName = `skill_${namespacedSkill.name.toLowerCase().replace(/-/g, "_")}`
-          const toolContent = generateSkillPluginTool(namespacedSkill)
+
+          // Use custom tool generator if provided, otherwise use default
+          let toolContent: string
+          if (crosstrainerConfig?.generateSkillTool) {
+            toolContent = await crosstrainerConfig.generateSkillTool(namespacedSkill, conversionContext)
+          } else {
+            toolContent = generateSkillPluginTool(namespacedSkill)
+          }
+
           await writeFile(join(toolsDir, `${toolName}.ts`), toolContent)
+          convertedFiles.skills.push(`tools/${toolName}.ts`)
           if (opts.verbose) {
             log(`  Wrote: tools/${toolName}.ts`)
           }
@@ -1142,7 +1276,7 @@ async function handlePlugin(source: string | undefined, opts: CLIOptions): Promi
         const packageJson = {
           name: `crosstrain-${pluginName}`,
           version: "0.0.1",
-          description: `Claude Code plugin '${pluginName}' skills converted to OpenCode tools`,
+          description: crosstrainerConfig?.description || `Claude Code plugin '${pluginName}' skills converted to OpenCode tools`,
           main: "index.ts",
           type: "module",
           peerDependencies: {
@@ -1168,19 +1302,45 @@ async function handlePlugin(source: string | undefined, opts: CLIOptions): Promi
       const config = JSON.parse(content)
 
       if (config.mcpServers && Object.keys(config.mcpServers).length > 0) {
-        const servers = Object.entries(config.mcpServers).map(([name, server]) => ({
+        let servers = Object.entries(config.mcpServers).map(([name, server]) => ({
           name,
           server: server as any,
           source: "plugin" as const,
           sourcePath: mcpPath,
         }))
 
-        if (opts.dryRun) {
+        // Apply crosstrainer filters
+        servers = servers.filter(s => shouldIncludeAsset(s.name, crosstrainerConfig?.mcp))
+
+        // Apply crosstrainer transforms
+        if (crosstrainerConfig?.transformMCP) {
+          const transformed: typeof servers = []
+          for (const s of servers) {
+            const result = await crosstrainerConfig.transformMCP(s.name, s.server, conversionContext)
+            if (result) {
+              transformed.push({
+                name: result.name,
+                server: result.server,
+                source: "plugin" as const,
+                sourcePath: mcpPath,
+              })
+            }
+          }
+          servers = transformed
+        }
+
+        if (servers.length === 0) {
+          log("  No MCP servers to convert")
+        } else if (opts.dryRun) {
           for (const server of servers) {
             info(`Would convert: ${server.name} → ${pluginPrefix}${server.name}`)
           }
         } else {
-          const converted = convertMCPServers(servers, { filePrefix: pluginPrefix, verbose: opts.verbose })
+          const converted = convertMCPServers(servers, {
+            filePrefix: pluginPrefix,
+            verbose: opts.verbose,
+            enableByDefault: crosstrainerConfig?.mcp?.enableByDefault,
+          })
 
           // Merge into opencode.json
           const configPath = join(dirname(opts.outputDir), "opencode.json")
@@ -1197,6 +1357,9 @@ async function handlePlugin(source: string | undefined, opts: CLIOptions): Promi
           }
 
           await writeFile(configPath, JSON.stringify(existingConfig, null, 2) + "\n")
+          for (const name of Object.keys(converted)) {
+            convertedFiles.mcp.push(name)
+          }
           success(`Synced ${Object.keys(converted).length} MCP server(s)`)
         }
         totalConverted += servers.length
@@ -1240,6 +1403,15 @@ async function handlePlugin(source: string | undefined, opts: CLIOptions): Promi
     }
   } else {
     log("  No settings.json found")
+  }
+
+  // Call post-conversion hook if provided
+  if (crosstrainerConfig?.onConversionComplete && !opts.dryRun) {
+    try {
+      await crosstrainerConfig.onConversionComplete(conversionContext, convertedFiles)
+    } catch (err) {
+      warn(`Post-conversion hook failed: ${(err as Error).message}`)
+    }
   }
 
   // Summary

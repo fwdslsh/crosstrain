@@ -279,6 +279,10 @@ crosstrain plugin <source> [options]
             └── skill_<plugin>_<skill>.ts
 ```
 
+**Crosstrainer Config:**
+
+Plugin authors can include a `crosstrainer.{json,js}` file in their plugin root to customize conversion. See [Crosstrainer Configuration](#crosstrainer-configuration) below.
+
 **Examples:**
 ```bash
 # Local plugin
@@ -482,6 +486,144 @@ crosstrain settings
 
 # Full migration: settings + all assets
 crosstrain settings && crosstrain all
+```
+
+---
+
+## Crosstrainer Configuration
+
+Plugin authors can include a `crosstrainer.{json,jsonc,js}` file in their plugin root to customize how the plugin is converted to OpenCode format.
+
+**Supported files** (only one per plugin):
+- `crosstrainer.json` - Simple declarative configuration
+- `crosstrainer.jsonc` - JSON with comments
+- `crosstrainer.js` - Full control with JavaScript hooks
+
+### JSON Configuration
+
+Use `crosstrainer.json` for simple customizations:
+
+```json
+{
+  "name": "my-plugin",
+  "description": "My awesome plugin",
+  "prefix": "myplugin_",
+
+  "models": {
+    "sonnet": "anthropic/claude-sonnet-4-5",
+    "opus": "anthropic/claude-opus-4-5"
+  },
+
+  "agents": {
+    "exclude": ["internal-agent"],
+    "defaultModel": "sonnet"
+  },
+
+  "commands": {
+    "include": ["public-cmd-1", "public-cmd-2"]
+  },
+
+  "skills": {
+    "exclude": ["dev-only-skill"]
+  },
+
+  "mcp": {
+    "enableByDefault": true,
+    "exclude": ["debug-server"]
+  }
+}
+```
+
+**Available options:**
+
+| Option | Description |
+|--------|-------------|
+| `name` | Override plugin name |
+| `description` | Override plugin description |
+| `prefix` | Custom file prefix for generated assets |
+| `models` | Map Claude model aliases to OpenCode paths |
+| `agents.include` | Only include these agents |
+| `agents.exclude` | Exclude these agents |
+| `agents.defaultModel` | Default model for agents without explicit model |
+| `commands.include` | Only include these commands |
+| `commands.exclude` | Exclude these commands |
+| `skills.include` | Only include these skills |
+| `skills.exclude` | Exclude these skills |
+| `mcp.include` | Only include these MCP servers |
+| `mcp.exclude` | Exclude these MCP servers |
+| `mcp.enableByDefault` | Enable MCP servers by default |
+
+### JavaScript Configuration
+
+Use `crosstrainer.js` for full control with transform hooks:
+
+```javascript
+module.exports = {
+  name: "my-plugin",
+  prefix: "myplugin_",
+
+  // Transform each agent before conversion
+  transformAgent: (agent, context) => {
+    // Return null to skip this agent
+    if (agent.name === "internal") return null
+
+    // Modify the agent
+    return {
+      ...agent,
+      description: `[MyPlugin] ${agent.description}`
+    }
+  },
+
+  // Transform each skill before conversion
+  transformSkill: (skill, context) => {
+    return {
+      ...skill,
+      allowedTools: [...(skill.allowedTools || []), "custom-tool"]
+    }
+  },
+
+  // Custom tool code generator for skills
+  generateSkillTool: (skill, context) => {
+    return `
+import { tool } from "@opencode-ai/plugin"
+
+export const ${skill.name} = tool({
+  description: "${skill.description}",
+  // Custom implementation...
+})
+`
+  },
+
+  // Called after all conversions complete
+  onConversionComplete: (context, results) => {
+    console.log(\`Converted: \${results.skills.length} skills\`)
+  }
+}
+```
+
+**Available hooks:**
+
+| Hook | Description |
+|------|-------------|
+| `transformAgent(agent, context)` | Transform agent before conversion. Return null to skip. |
+| `transformCommand(command, context)` | Transform command before conversion. Return null to skip. |
+| `transformSkill(skill, context)` | Transform skill before conversion. Return null to skip. |
+| `transformMCP(name, server, context)` | Transform MCP server. Return null to skip. |
+| `generateSkillTool(skill, context)` | Generate custom tool code for a skill. |
+| `onConversionComplete(context, results)` | Called after all conversions complete. |
+
+**Context object:**
+
+```typescript
+interface ConversionContext {
+  pluginName: string      // Effective plugin name
+  pluginDir: string       // Plugin source directory
+  outputDir: string       // Output directory
+  prefix: string          // File prefix
+  dryRun: boolean         // Whether this is a dry run
+  verbose: boolean        // Verbose mode
+  config: CrosstrainerConfig  // The loaded config
+}
 ```
 
 ---

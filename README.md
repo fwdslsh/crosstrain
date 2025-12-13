@@ -220,6 +220,55 @@ crosstrain list anthropics/claude-plugins
 
 Output shows plugin names, descriptions, and the command to convert each one.
 
+## Crosstrainer Configuration
+
+Plugin authors can customize conversion by adding a `crosstrainer.json` or `crosstrainer.js` file to their plugin root.
+
+### JSON Configuration
+
+For simple customization (model mappings, asset filtering):
+
+```json
+{
+  "name": "my-plugin",
+  "prefix": "myplugin_",
+  "models": {
+    "sonnet": "anthropic/claude-sonnet-4-20250514"
+  },
+  "agents": {
+    "exclude": ["deprecated-agent"]
+  }
+}
+```
+
+### JavaScript Configuration
+
+For full control with transform hooks:
+
+```javascript
+export default {
+  name: "my-plugin",
+
+  transformAgent(agent, ctx) {
+    // Modify agent before conversion
+    agent.model = "opus"
+    return agent
+  },
+
+  transformCommand(command, ctx) {
+    // Return null to skip
+    if (command.name.startsWith("internal-")) return null
+    return command
+  },
+
+  onConversionComplete(ctx, results) {
+    console.log(`Converted ${results.agents.length} agents`)
+  }
+}
+```
+
+Only one crosstrainer file per plugin. See [CLI Reference](docs/cli.md) for full documentation.
+
 ## Development
 
 ```bash

@@ -79,6 +79,8 @@ Loaders are used by the CLI for asset discovery and conversion:
 | `hooks.ts` | `.claude/settings.json` | Runtime event handlers |
 | `mcp.ts` | `.mcp.json` files | `opencode.json` → `mcp` section |
 | `marketplace.ts` | Git repos / local dirs | Plugin discovery |
+| `crosstrainer-config.ts` | `crosstrainer.{json,js}` | Conversion customization |
+| `settings-converter.ts` | `.claude/settings.json` | `opencode.json` |
 
 ### Type System (`src/types.ts`)
 
@@ -99,6 +101,22 @@ Plugin configuration in `.opencode/plugin/crosstrain/settings.json`:
 ```
 
 The CLI uses its own arguments and doesn't require configuration files.
+
+### Crosstrainer Config (`src/loaders/crosstrainer-config.ts`)
+
+Plugin authors can customize conversion with `crosstrainer.{json,jsonc,js,ts}` in their plugin root:
+
+- **JSON/JSONC**: Declarative config for mappings and filters
+- **JS/TS**: Full control with transform hooks
+
+Only one crosstrainer file allowed per plugin. See `docs/cli.md` for full documentation.
+
+**Key features:**
+- Asset filtering (include/exclude lists)
+- Model and permission mappings
+- Transform hooks for agents, commands, skills, MCP
+- Custom skill tool code generation
+- Post-conversion hooks
 
 ## Key Mappings
 
