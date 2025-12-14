@@ -22,6 +22,7 @@ jobs:
     uses: fwdslsh/toolkit/.github/workflows/bun-build-binaries.yml@main
     with:
       upload-artifacts: true
+      target-file: cli.ts
 
   # Then create the release
   release:
