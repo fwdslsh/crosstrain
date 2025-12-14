@@ -1,0 +1,42 @@
+# Test files
+tests/
+src/tests/
+*.test.ts
+*.spec.ts
+
+# Build artifacts
+crosstrain
+crosstrain-*
+dist/
+*.log
+*.tmp
+
+# Development files
+.github/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+tsconfig.json
+bun.lock
+
+# Scripts
+scripts/
+
+# Git
+.git/
+.gitignore
+
+# Environment
+.env
+.env.local
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/

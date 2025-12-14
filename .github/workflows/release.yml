@@ -4,34 +4,38 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v1.0.0)'
+        required: true
+        type: string
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
+  # First, build all binaries
+  build:
+    name: Build Binaries
+    uses: fwdslsh/toolkit/.github/workflows/bun-build-binaries.yml@main
+    with:
+      upload-artifacts: true
+
+  # Then create the release
   release:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+    name: Create Release
+    needs: build
+    uses: fwdslsh/toolkit/.github/workflows/create-gh-release.yml@main
+    with:
+      tag: ${{ github.event.inputs.tag || github.ref_name }}
+    secrets: inherit
 
-      - name: Get version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-      - name: Create release archive
-        run: |
-          mkdir -p dist/crosstrain
-          cp -r src dist/crosstrain/
-          cp package.json dist/crosstrain/
-          cp tsconfig.json dist/crosstrain/
-          cp README.md dist/crosstrain/ 2>/dev/null || true
-          cp LICENSE dist/crosstrain/ 2>/dev/null || true
-          cd dist
-          tar -czvf crosstrain-${{ steps.version.outputs.VERSION }}.tar.gz crosstrain
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/crosstrain-${{ steps.version.outputs.VERSION }}.tar.gz
-          generate_release_notes: true
+  # Call NPM publishing workflow  
+  publish-npm:
+    name: Publish NPM Package
+    needs: [build, release]
+    if: ${{ !cancelled() && needs.release.result == 'success' }}
+    uses: fwdslsh/toolkit/.github/workflows/publish-npm.yml@main
+    secrets: inherit

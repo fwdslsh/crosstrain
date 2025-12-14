@@ -8,13 +8,29 @@ set -e
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
 NC='\033[0m'
 
 REPO_URL="https://github.com/fwdslsh/crosstrain.git"
 INSTALL_TYPE="${1:-project}"
 
-echo -e "${GREEN}Crosstrain Plugin Installer${NC}"
-echo "================================"
+# ASCII Banner
+show_banner() {
+    printf "${CYAN}"
+    cat << 'EOF'
+    __________  ____  _______________  ___    ____   ______  __
+   / ____/ __ \/ __ \/ ___/ ___/_  __/ __ \  /   |  /  _/ | / /
+  / /   / /_/ / / / /\__ \\__ \ / / / /_/ / / /| |  / //  |/ / 
+ / /___/ _, _/ /_/ /___/ /__/ // / / _, _/ / ___ |_/ // /|  /  
+ \____/_/ |_|\____//____/____//_/ /_/ |_| /_/  |_/___/_/ |_/   
+
+                                                      
+ Bridge Claude Code to OpenCode
+EOF
+    printf "${NC}\n"
+}
+
+show_banner
 
 # Determine installation directory
 case "$INSTALL_TYPE" in
