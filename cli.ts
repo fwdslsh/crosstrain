@@ -35,23 +35,23 @@ import {
   discoverSkills,
   convertSkillToTool,
   createToolsFromSkills,
-} from "./loaders/skills"
+} from "./src/loaders/skills"
 import {
   discoverAgents,
   generateOpenCodeAgent,
   writeOpenCodeAgents,
   syncAgentsToOpenCode,
-} from "./loaders/agents"
+} from "./src/loaders/agents"
 import {
   discoverCommands,
   generateOpenCodeCommand,
   writeOpenCodeCommands,
   syncCommandsToOpenCode,
-} from "./loaders/commands"
+} from "./src/loaders/commands"
 import {
   loadClaudeHooksConfig,
   buildHookHandlers,
-} from "./loaders/hooks"
+} from "./src/loaders/hooks"
 import {
   discoverMCPConfigs,
   discoverPluginMCPConfigs,
@@ -59,7 +59,7 @@ import {
   syncMCPToOpenCode,
   getAllMCPServers,
   getMCPSummary,
-} from "./loaders/mcp"
+} from "./src/loaders/mcp"
 import {
   loadMarketplace,
   discoverPluginsInMarketplace,
@@ -67,7 +67,7 @@ import {
   parsePluginManifest,
   resolveMarketplaceSource,
   clearGitMarketplaceCache,
-} from "./loaders/marketplace"
+} from "./src/loaders/marketplace"
 import {
   discoverClaudeSettings,
   convertClaudeSettingsToOpenCode,
@@ -75,7 +75,7 @@ import {
   writeOpenCodeConfig,
   mergeOpenCodeConfigs,
   formatSettingsForDisplay,
-} from "./loaders/settings-converter"
+} from "./src/loaders/settings-converter"
 import {
   loadCrosstrainerConfig,
   shouldIncludeAsset,
@@ -87,13 +87,13 @@ import {
   type CrosstrainerConfig,
   type ConversionContext,
   type LoadedCrosstrainerConfig,
-} from "./loaders/crosstrainer-config"
+} from "./src/loaders/crosstrainer-config"
 import {
   parseMarkdownWithFrontmatter,
   readTextFile,
   extractNameFromPath,
   parseCommaSeparated,
-} from "./utils/parser"
+} from "./src/utils/parser"
 import type {
   ClaudeSkill,
   ClaudeSkillFrontmatter,
@@ -102,7 +102,7 @@ import type {
   ClaudeCommand,
   ClaudeCommandFrontmatter,
   ParsedPlugin,
-} from "./types"
+} from "./src/types"
 
 // Version from package.json
 const VERSION = "0.0.4"

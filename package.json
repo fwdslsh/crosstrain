@@ -3,28 +3,29 @@
   "version": "0.1.1",
   "description": "OpenCode plugin that loads Claude Code extension points (skills, agents, commands, hooks) into OpenCode",
   "type": "module",
-  "main": "index.ts",
+  "main": "cli.ts",
   "bin": {
-    "crosstrain": "./src/cli.ts"
+    "crosstrain": "./cli.ts"
   },
   "exports": {
     ".": "./index.ts",
     "./src": "./src/index.ts",
-    "./cli": "./src/cli.ts"
+    "./cli": "./cli.ts"
   },
   "scripts": {
     "test": "bun test",
     "test:watch": "bun test --watch",
     "typecheck": "tsc --noEmit",
-    "build": "bun build --compile --minify --sourcemap ./src/cli.ts --outfile crosstrain",
+    "build": "bun build --compile --minify --sourcemap ./cli.ts --outfile crosstrain",
     "build:all": "npm run build:linux-x64 && npm run build:linux-arm64 && npm run build:darwin-x64 && npm run build:darwin-arm64 && npm run build:windows-x64",
-    "build:linux-x64": "bun build --compile --minify --target=bun-linux-x64 ./src/cli.ts --outfile crosstrain-linux-x64",
-    "build:linux-arm64": "bun build --compile --minify --target=bun-linux-arm64 ./src/cli.ts --outfile crosstrain-linux-arm64",
-    "build:darwin-x64": "bun build --compile --minify --target=bun-darwin-x64 ./src/cli.ts --outfile crosstrain-darwin-x64",
-    "build:darwin-arm64": "bun build --compile --minify --target=bun-darwin-arm64 ./src/cli.ts --outfile crosstrain-darwin-arm64",
-    "build:windows-x64": "bun build --compile --minify --target=bun-windows-x64 ./src/cli.ts --outfile crosstrain-windows-x64.exe"
+    "build:linux-x64": "bun build --compile --minify --target=bun-linux-x64 ./cli.ts --outfile crosstrain-linux-x64",
+    "build:linux-arm64": "bun build --compile --minify --target=bun-linux-arm64 ./cli.ts --outfile crosstrain-linux-arm64",
+    "build:darwin-x64": "bun build --compile --minify --target=bun-darwin-x64 ./cli.ts --outfile crosstrain-darwin-x64",
+    "build:darwin-arm64": "bun build --compile --minify --target=bun-darwin-arm64 ./cli.ts --outfile crosstrain-darwin-arm64",
+    "build:windows-x64": "bun build --compile --minify --target=bun-windows-x64 ./cli.ts --outfile crosstrain-windows-x64.exe"
   },
   "files": [
+    "cli.ts",
     "src/**/*.ts",
     "index.ts",
     "README.md",
