@@ -71,7 +71,7 @@ export async function discoverAgents(
  */
 async function loadAgentsFromDirectory(agentsDir: string): Promise<ClaudeAgent[]> {
   const agents: ClaudeAgent[] = []
-  const agentFiles = await getMarkdownFiles(agentsDir)
+  const agentFiles = await getMarkdownFiles(agentsDir, true)
 
   for (const filePath of agentFiles) {
     const agent = await loadAgent(filePath)

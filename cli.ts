@@ -1779,6 +1779,11 @@ async function main(): Promise<void> {
   opts.claudeDir = resolve(opts.claudeDir)
   opts.outputDir = resolve(opts.outputDir)
 
+  // If a path is provided for 'all' command, use it as claudeDir
+  if ((command === "all" || command === "sync") && path) {
+    opts.claudeDir = resolve(path)
+  }
+
   switch (command) {
     case "command":
       await handleCommand(path, opts)

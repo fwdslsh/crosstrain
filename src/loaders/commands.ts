@@ -70,7 +70,7 @@ async function loadCommandsFromDirectory(
   commandsDir: string
 ): Promise<ClaudeCommand[]> {
   const commands: ClaudeCommand[] = []
-  const commandFiles = await getMarkdownFiles(commandsDir)
+  const commandFiles = await getMarkdownFiles(commandsDir, true)
 
   for (const filePath of commandFiles) {
     const command = await loadCommand(filePath)
